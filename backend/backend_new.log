@@ -1,0 +1,29 @@
+
+> russian-trader-backend@1.0.0 dev
+> nodemon src/server.ts
+
+[33m[nodemon] 3.1.10[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: ts,json[39m
+[32m[nodemon] starting `ts-node src/server.ts`[39m
+🔌 WebSocket сервер запущен
+🔔 Сервис push-уведомлений инициализирован
+✅ PostgreSQL подключена успешно
+📊 Таблицы PostgreSQL готовы к работе
+📊 PostgreSQL подключена успешно
+✅ Тестовый пользователь уже существует
+✅ Тестовый пользователь PostgreSQL инициализирован
+Error: listen EADDRINUSE: address already in use :::3001
+    at Server.setupListenHandle [as _listen2] (node:net:1940:16)
+    at listenInCluster (node:net:1997:12)
+    at Server.listen (node:net:2102:7)
+    at startServer (/Users/vl/Desktop/Разработки/Trader/backend/src/server.ts:152:10)
+    at processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  code: 'EADDRINUSE',
+  errno: -48,
+  syscall: 'listen',
+  address: '::',
+  port: 3001
+}
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

@@ -1,0 +1,10 @@
+
+> russian-trader-frontend@1.0.0 dev
+> vite --open --host 0.0.0.0
+
+
+  VITE v4.5.14  ready in 151 ms
+
+  ➜  Local:   http://localhost:3002/
+  ➜  Network: http://192.168.10.100:3002/
+  ➜  press h to show help
