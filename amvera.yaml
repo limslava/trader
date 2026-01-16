@@ -7,6 +7,9 @@ meta:
 
 build:
   dockerfile: Dockerfile
+  args:
+    REACT_APP_API_URL: https://amvera-limslava-run-trader
+    REACT_APP_WS_URL: wss://amvera-limslava-run-trader
 
 run:
   containerPort: 80
@@ -16,18 +19,12 @@ run:
     # Server
     PORT: 80
     NODE_ENV: production
-    APP_HOST: 0.0.0.0
-    APP_PORT: 80
-    PROTOCOL: https
     # JWT
-    JWT_SECRET: ваш_надежный_jwt_секретный_ключ_минимум_32_символа
+    JWT_SECRET: temporary_jwt_secret_for_testing_12345678901234567890
     JWT_EXPIRES_IN: 24h
     # CORS
-    CORS_ORIGINS: https://trader.amvera.io
-    FRONTEND_URL: https://trader.amvera.io
-    # Frontend
-    REACT_APP_API_URL: https://trader.amvera.io
-    REACT_APP_WS_URL: wss://trader.amvera.io
+    CORS_ORIGINS: https://amvera-limslava-run-trader
+    FRONTEND_URL: https://amvera-limslava-run-trader
 
 deploy:
   replicas: 1
