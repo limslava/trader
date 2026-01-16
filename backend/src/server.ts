@@ -48,10 +48,37 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false
 }));
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
+
+// Конфигурация CORS для разработки
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // Разрешаем запросы без origin (например, из мобильных приложений или Postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      process.env.FRONTEND_URL || 'http://localhost:3002',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://localhost:3002',
+      'http://localhost:3003',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      'http://127.0.0.1:3002',
+      'http://127.0.0.1:3003'
+    ];
+    
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS заблокирован для origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -86,6 +113,34 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Обслуживание статики frontend в production
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+  
+  // Проверяем существование директории
+  const fs = require('fs');
+  if (fs.existsSync(frontendDistPath)) {
+    app.use(express.static(frontendDistPath));
+    
+    // Для SPA: все остальные маршруты перенаправляем на index.html
+    app.get('*', (req, res) => {
+      // Не перенаправляем API маршруты
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({
+          error: 'Маршрут не найден',
+          path: req.originalUrl
+        });
+      }
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    });
+    
+    console.log(`📁 Статика frontend обслуживается из: ${frontendDistPath}`);
+  } else {
+    console.warn(`⚠️ Директория frontend/dist не найдена: ${frontendDistPath}`);
+    console.warn('Frontend не будет обслуживаться статически. Соберите frontend: npm run build в директории frontend');
+  }
+}
 
 // Инициализация сервисов
 const marketDataService = new MarketDataService();

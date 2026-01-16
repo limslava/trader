@@ -1,0 +1,14 @@
+meta:
+  environment: docker
+  toolchain:
+    name: docker
+build:
+  dockerfile: Dockerfile
+  skip: false
+run:
+  image: null
+  command: null
+  args: null
+  persistenceMount: /data
+  containerPort: "3000"  # Наше приложение слушает порт 3000
+  # Amvera будет проксировать внешний порт на этот порт контейнера
