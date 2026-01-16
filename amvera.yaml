@@ -14,13 +14,9 @@ build:
 run:
   containerPort: 80
   env:
-    # Database
-    DATABASE_URL: postgresql://user:password@host:5432/db?schema=public&sslmode=require
     # Server
     PORT: 80
     NODE_ENV: production
-    # JWT
-    JWT_SECRET: temporary_jwt_secret_for_testing_12345678901234567890
     JWT_EXPIRES_IN: 24h
     # CORS
     CORS_ORIGINS: https://amvera-limslava-run-trader
