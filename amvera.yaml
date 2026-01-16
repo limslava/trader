@@ -1,3 +1,4 @@
+# Комбинированная конфигурация для Amvera
 version: 1
 
 meta:
@@ -9,7 +10,6 @@ build:
   dockerfile: Dockerfile
   args:
     REACT_APP_API_URL: https://amvera-limslava-run-trader
-    REACT_APP_WS_URL: wss://amvera-limslava-run-trader
 
 run:
   containerPort: 80
@@ -17,10 +17,10 @@ run:
     # Server
     PORT: 80
     NODE_ENV: production
-    JWT_EXPIRES_IN: 24h
     # CORS
     CORS_ORIGINS: https://amvera-limslava-run-trader
     FRONTEND_URL: https://amvera-limslava-run-trader
+    JWT_EXPIRES_IN: 24h
 
 deploy:
   replicas: 1
