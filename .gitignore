@@ -110,3 +110,18 @@ docker-compose.override.yml
 # Temporary files
 tmp/
 temp/
+
+# Amvera configuration backups
+amvera-combined.yaml
+Dockerfile.alt
+
+# Test and debug files
+backend/check-*.js
+backend/check-*.ts
+backend/test-*.js
+backend/*.log
+backend/debug-*.js
+
+# Package lock files (optional - можно оставить, но для чистоты)
+# backend/package-lock.json
+# frontend/package-lock.json
