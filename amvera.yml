@@ -1,14 +1,24 @@
+# Конфигурационный файл для Amvera Cloud
+# Окружение: Docker
+# Инструмент: Docker
+
 meta:
   environment: docker
   toolchain:
     name: docker
+
+# Настройки сборки
 build:
-  dockerfile: Dockerfile
-  skip: false
+  dockerfile: Dockerfile  # Используем Dockerfile в корне проекта
+  skip: false             # Всегда выполнять сборку
+
+# Настройки запуска
 run:
-  image: null
-  command: null
-  args: null
-  persistenceMount: /data
-  containerPort: "3000"  # Наше приложение слушает порт 3000
-  # Amvera будет проксировать внешний порт на этот порт контейнера
+  image: null             # Используем образ, собранный из Dockerfile
+  command: null           # Используем CMD из Dockerfile
+  args: null              # Без дополнительных аргументов
+  persistenceMount: /data # Точка монтирования для постоянных данных
+  containerPort: "3000"   # Порт, который слушает контейнер (приложение на Express)
+  
+  # Amvera будет проксировать внешние запросы на этот порт контейнера
+  # Внешний URL будет доступен по домену, выданному Amvera
