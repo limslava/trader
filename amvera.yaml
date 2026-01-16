@@ -6,7 +6,7 @@ meta:
     name: docker
 
 build:
-  dockerfile: Dockerfile
+  dockerfile: Dockerfile.alt
 
 run:
   containerPort: 80
