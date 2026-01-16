@@ -55,14 +55,14 @@ RUN ln -sf /app/frontend/dist /app/backend/frontend-dist
 
 # Устанавливаем переменные окружения
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=80
 
 # Открываем порт (можно изменить через переменную окружения PORT)
-EXPOSE 3000
+EXPOSE 80
 
 # Устанавливаем healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-3000}/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:${PORT:-80}/health || exit 1
 
 # Запускаем приложение
 CMD ["node", "backend/dist/server.js"]

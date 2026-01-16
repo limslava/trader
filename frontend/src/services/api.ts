@@ -2,7 +2,26 @@ import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
 
 // Базовый URL для API
-const API_BASE_URL = 'http://localhost:3001/api';
+// В режиме разработки используем относительный путь, который будет проксироваться через Vite
+// В production можно задать через переменную окружения VITE_API_URL
+const API_BASE_URL = (() => {
+  // Проверяем, работает ли приложение в development режиме
+  // Если hostname localhost и порт 3002, используем прокси
+  if (typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+      window.location.port === '3002') {
+    return '/api'; // Проксируется через Vite на http://localhost:3001/api
+  }
+  
+  // Для production или других окружений
+  return import.meta.env?.VITE_API_URL || 'http://localhost:3001/api';
+})();
+
+console.log('API Configuration:', {
+  API_BASE_URL,
+  hostname: typeof window !== 'undefined' ? window.location.hostname : 'server',
+  port: typeof window !== 'undefined' ? window.location.port : 'none'
+});
 
 // Создаем экземпляр axios с базовой конфигурацией
 const apiClient = axios.create({
@@ -11,6 +30,7 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Для отправки cookies при необходимости
 });
 
 // Интерцептор для добавления токена авторизации
