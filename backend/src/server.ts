@@ -49,12 +49,12 @@ app.use(helmet({
   contentSecurityPolicy: false
 }));
 
-// Конфигурация CORS для разработки
+// Конфигурация CORS
 const corsOptions = {
   origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
     // Разрешаем запросы без origin (например, из мобильных приложений или Postman)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       process.env.FRONTEND_URL || 'http://localhost:3002',
       'http://localhost:3000',
@@ -66,7 +66,14 @@ const corsOptions = {
       'http://127.0.0.1:3002',
       'http://127.0.0.1:3003'
     ];
-    
+
+    // Добавляем дополнительные origins из переменной окружения CORS_ORIGINS
+    const corsOrigins = process.env.CORS_ORIGINS;
+    if (corsOrigins) {
+      const additionalOrigins = corsOrigins.split(',').map(o => o.trim());
+      allowedOrigins.push(...additionalOrigins);
+    }
+
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {

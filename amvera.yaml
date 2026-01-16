@@ -10,6 +10,24 @@ build:
 
 run:
   containerPort: 80
+  env:
+    # Database
+    DATABASE_URL: postgresql://user:password@host:5432/db?schema=public&sslmode=require
+    # Server
+    PORT: 80
+    NODE_ENV: production
+    APP_HOST: 0.0.0.0
+    APP_PORT: 80
+    PROTOCOL: https
+    # JWT
+    JWT_SECRET: ваш_надежный_jwt_секретный_ключ_минимум_32_символа
+    JWT_EXPIRES_IN: 24h
+    # CORS
+    CORS_ORIGINS: https://trader.amvera.io
+    FRONTEND_URL: https://trader.amvera.io
+    # Frontend
+    REACT_APP_API_URL: https://trader.amvera.io
+    REACT_APP_WS_URL: wss://trader.amvera.io
 
 deploy:
   replicas: 1
