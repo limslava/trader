@@ -8,5 +8,5 @@ build:
   additionalCommands: npm run install:all && npm run build
 
 run:
-  command: npm run start
+  command: NODE_ENV=production npm run start
   containerPort: 3001
