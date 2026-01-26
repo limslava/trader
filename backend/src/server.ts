@@ -4,9 +4,16 @@ import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
+import fs from 'fs';
+import path from 'path';
 
 // Загрузка переменных окружения
-dotenv.config();
+const envPath = path.resolve(__dirname, '../.env');
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
 
 // Импорт базы данных
 import { postgresDatabase } from './config/postgres';
@@ -38,6 +45,8 @@ import { PushNotificationService } from './services/PushNotificationService';
 const app = express();
 const server = createServer(app);
 const PORT = process.env.PORT || 3001;
+const isProduction = process.env.NODE_ENV === 'production';
+const staticRoot = path.resolve(__dirname, '../../frontend/dist');
 
 // Инициализация WebSocket сервиса
 const webSocketService = new WebSocketService();
@@ -76,6 +85,10 @@ app.use('/api/broker', brokerRoutes);
 app.use('/api/cache', cacheRoutes);
 app.use('/api/ml', mlRoutes);
 app.use('/api/capital', authenticateToken, capitalRoutes);
+
+if (isProduction && fs.existsSync(staticRoot)) {
+  app.use(express.static(staticRoot));
+}
 
 // Health check
 app.get('/health', (req, res) => {
@@ -120,6 +133,16 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     message: process.env.NODE_ENV === 'development' ? err.message : 'Произошла ошибка'
   });
 });
+
+if (isProduction && fs.existsSync(path.join(staticRoot, 'index.html'))) {
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      next();
+      return;
+    }
+    res.sendFile(path.join(staticRoot, 'index.html'));
+  });
+}
 
 // Обработка 404
 app.use('*', (req, res) => {

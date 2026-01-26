@@ -11,7 +11,7 @@
 1. **PostgreSQL Database** - основное хранилище данных
 2. **PostgresAuthService** - сервис аутентификации для PostgreSQL
 3. **postgresAuthRoutes** - API маршруты для PostgreSQL аутентификации
-4. **Docker Compose** - контейнеризация базы данных
+4. **Docker Compose (опционально)** - контейнеризация базы данных
 
 ### Стек технологий:
 - **PostgreSQL 15** - реляционная база данных
@@ -24,12 +24,19 @@
 ### 1. Запуск PostgreSQL
 
 ```bash
-# Запуск контейнеров PostgreSQL и pgAdmin
+# Вариант A: через Docker Compose
 docker-compose up -d
-
-# Проверка статуса
 docker ps
 ```
+
+```bash
+# Вариант B: локально без Docker (PostgreSQL уже установлен)
+# Убедитесь, что сервис запущен и слушает нужный порт (например, 5433)
+```
+
+### 1.1 Инициализация таблиц
+
+Используйте `postgres-init.sql` из корня проекта, чтобы создать таблицы.
 
 ### 2. Проверка подключения
 
@@ -157,7 +164,7 @@ POSTGRES_PASSWORD=trader123
 JWT_SECRET=russian-trader-secret-key-2025
 ```
 
-### Docker Compose (docker-compose.yml):
+### Docker Compose (docker-compose.yml, опционально):
 
 ```yaml
 services:
