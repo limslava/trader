@@ -110,7 +110,7 @@ export const usePortfolioStore = create<PortfolioState>()(
           
           // Удаляем транзакцию из списка
           set({ 
-            transactions: transactions.filter(t => t._id !== transactionId),
+            transactions: transactions.filter(t => t.id !== transactionId),
             isLoading: false 
           });
 
