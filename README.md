@@ -238,8 +238,8 @@ JWT_SECRET=your-secret-key
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5433
 POSTGRES_DB=russian-trader
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=password
+POSTGRES_USER=trader
+POSTGRES_PASSWORD=trader123
 FRONTEND_URL=http://localhost:3002
 ENABLE_MOCK_DATA=true
 REDIS_URL=redis://localhost:6379
@@ -247,7 +247,8 @@ BROKER_API_KEY=your-broker-api-key
 BROKER_API_SECRET=your-broker-api-secret
 ```
 
-**Примечание:** PostgreSQL запускается автоматически через Docker
+**Примечание:** PostgreSQL и Redis должны быть запущены локально (или через Docker). 
+Для создания таблиц используйте `postgres-init.sql` из корня проекта.
 
 ### Frontend настройки
 - Прокси настроен на backend (localhost:3001)
@@ -297,6 +298,24 @@ cd backend && npm run build
 npm start
 ```
 
+## ☁️ Деплой на Amvera (один проект)
+
+Рекомендуемый вариант: один Node-сервис, который раздает статический фронт из `frontend/dist`.
+В репозитории уже есть `amvera.yml`, сборка вызывает `npm run build`, запуск — `npm run start`.
+
+### Важные переменные окружения
+
+- `PORT` — порт, который Amvera пробрасывает внутрь контейнера (обычно 80).
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `REDIS_URL`
+- `JWT_SECRET`
+
+### Обязательные шаги
+
+1) Создать managed PostgreSQL и Redis в Amvera.
+2) Прописать их параметры в переменные окружения проекта.
+3) Задеплоить репозиторий с `amvera.yml`.
+
 ## 🤝 Разработка
 
 ### Структура проекта
@@ -304,9 +323,10 @@ npm start
 russian-trader/
 ├── backend/          # Node.js API сервер
 ├── frontend/         # React приложение
-├── shared/           # Общие типы и утилиты
 ├── docs/             # Документация
-└── docker/           # Docker конфигурации
+├── docs/legacy/      # Архивная документация
+├── postgres-init.sql # Инициализация PostgreSQL
+└── docker-compose.yml
 ```
 
 ### Скрипты разработки

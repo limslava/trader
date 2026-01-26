@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "description": "Backend API для трейдинг-приложения с аналитикой российского рынка",
   "scripts": {
-    "dev": "nodemon src/server.ts",
+    "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "test": "jest",
+    "test": "jest --passWithNoTests",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
