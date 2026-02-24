@@ -1,0 +1,12 @@
+meta:
+  environment: node
+  toolchain:
+    name: npm
+    version: 18
+
+build:
+  additionalCommands: npm run install:all && npm run build
+
+run:
+  command: NODE_ENV=production npm run start
+  containerPort: 3001
