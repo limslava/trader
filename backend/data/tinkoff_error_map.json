@@ -1,0 +1,8 @@
+{
+  "5": "Trading status unavailable in sandbox (code 5)",
+  "UNKNOWN": "Tinkoff: rejection without explicit error code",
+  "ECONNRESET": "Tinkoff: connection reset by peer",
+  "ETIMEDOUT": "Tinkoff: request timed out",
+  "ENOTFOUND": "Tinkoff: API host not found",
+  "SELF_SIGNED_CERT_IN_CHAIN": "Tinkoff: TLS cert chain error (self-signed)"
+}

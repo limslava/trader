@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS instruments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  exchange VARCHAR(20) NOT NULL,
+  symbol VARCHAR(50) NOT NULL,
+  name VARCHAR(255),
+  lot_size NUMERIC(20,8) NOT NULL DEFAULT 1,
+  tick_size NUMERIC(20,8) NOT NULL DEFAULT 0.01,
+  currency VARCHAR(10) NOT NULL DEFAULT 'RUB',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (exchange, symbol)
+);
+
+CREATE INDEX IF NOT EXISTS idx_instruments_exchange ON instruments(exchange);

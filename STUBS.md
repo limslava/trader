@@ -1,0 +1,72 @@
+# Stubs and TODOs
+
+This file tracks intentional placeholders that must be revisited.
+
+## Backend V2
+- `backend/src/v2/routes/tenantRoutes.ts`: Update/delete/revoke added; email delivery integrated.
+- `backend/src/v2/services/TenantInvitationMailer.ts`: SMTP mailer added; ensure SMTP env configured.
+- `backend/src/v2/routes/orderRoutes.ts`: Broker routing works; still needs full broker coverage and production hardening.
+- `backend/src/v2/routes/brokerRoutes.ts`: Broker credential storage uses `secret_ref` placeholder; no real KMS/Vault.
+- `backend/src/v2/routes/riskRoutes.ts`: Pre-trade checks improved; still lacks broker-specific limits and portfolio PnL.
+- `backend/src/v2/services/broker/*`: Partial coverage (Tinkoff ok, Sber stubbed).
+- `backend/src/v2/services/broker/TinkoffAdapter.ts`: Uses REST proxy; prod validation still pending.
+- `backend/src/v2/services/broker/TinkoffErrorParser.ts`: Mapping now DB-backed; keep map updated.
+- `backend/src/v2/services/broker/TinkoffInstrumentsService.ts`: Tick size and instrument status mapping are simplified.
+- `backend/src/v2/services/broker/TinkoffOrderStatusService.ts`: GetOrders returns only active orders; no pagination support from API.
+- `backend/src/v2/services/broker/TinkoffOrderStateService.ts`: GetOrderState has no pagination; status mapping covered.
+- `backend/src/v2/services/broker/SberAdapter.ts`: Stub only; needs real API integration.
+- `backend/src/v2/services/broker/SberOrderStatusService.ts`: Stub only; needs real API integration.
+- `backend/src/v2/services/broker/BrokerRouter.ts`: Static routing; no dynamic broker selection or load balancing.
+- `backend/src/v2/services/broker/BrokerExecutionService.ts`: Uses SecretStore; real KMS/Vault pending.
+- `backend/src/v2/services/secrets/SecretVault.ts`: In-memory vault; replace with Vault in production.
+- `backend/src/v2/services/secrets/TenantSecretVault.ts`: Tenant-prefixed refs only; replace with real encryption + KMS.
+- `backend/src/v2/services/secrets/VaultSecretVault.ts`: Uses Vault KV v2; needs retries/backoff and caching.
+- `backend/src/v2/services/secrets/VaultHealth.ts`: Basic health check only; add caching and backoff.
+- `backend/src/v2/services/secrets/VaultRetry.ts`: Basic retry; add circuit breaker and metrics.
+- `backend/src/v2/services/secrets/SecretStore.ts`: Selects Vault if configured; still no rotation/audit enforcement.
+- `backend/src/v2/services/secrets/SecretAuditLog.ts`: Audit relies on `audit_logs` (migration applied).
+- `backend/src/v2/routes/secretRoutes.ts`: Basic validation; add secret schema validation and rotation flow.
+- `backend/src/v2/services/MarketIngestion.ts`: Writes to DB; add event bus/time-series pipeline.
+- `backend/src/v2/services/MarketNormalizer.ts`: Uses basic exchange mapping and tick size rounding; add full rules.
+- `backend/src/v2/services/InstrumentService.ts`: No caching; add caching and refresh strategy.
+- `backend/src/v2/services/AnalyticsService.ts`: Snapshot-based aggregates; replace with time-series DB and richer features.
+- `backend/src/v2/services/AIInsightsService.ts`: Strict schema validation + retry done; add caching later.
+- `backend/src/v2/services/ExecutionPipeline.ts`: Queueing ok; no distributed pipeline yet.
+- `backend/src/v2/services/ExecutionWorker.ts`: Polling + queue; retries/backoff added; needs production-grade scheduling.
+- `backend/src/v2/services/ExecutionLock.ts`: DB lock with TTL; replace with distributed lock if needed.
+- `backend/src/v2/services/ExecutionBackpressure.ts`: Tenant policy now used; add dynamic load-based throttling.
+- `backend/src/v2/services/ExecutionMetrics.ts`: P99 added; consider rolling retention by tenant window.
+- `backend/src/v2/services/ExecutionRetry.ts`: Uses tenant policy; refine per-tenant config.
+- `backend/src/v2/services/ExecutionIdempotency.ts`: Uses event table; uniqueness enforced.
+- `backend/src/v2/services/TenantPolicyService.ts`: Uses DB JSON policy; admin endpoints now exist.
+- `backend/sql/patch_v2_fills.sql`: Unique broker_trade_id idempotency added.
+- `backend/src/v2/routes/marketRoutes.ts`: Simple in-memory rate limit; replace with distributed limiter.
+- `backend/src/v2/middleware/rateLimit.ts`: In-memory limiter; replace with Redis/Envoy/NGINX.
+- `backend/src/v2/services/RiskService.ts`: Pre-trade checks expanded (order counts + per-symbol + position); add broker constraints + portfolio PnL.
+- `backend/src/v2/routes/executionRoutes.ts`: Manual fills remain; broker callbacks now supported.
+- `backend/src/v2/routes/brokerCallbackRoutes.ts`: Normalized callbacks + audit; official signature spec still pending.
+- `backend/src/v2/services/TinkoffWebhookVerifier.ts`: Signature check uses HMAC SHA256; official spec still unknown.
+- `backend/src/v2/middleware/callbackAuth.ts`: Shared secret header only; replace with signed callbacks when available.
+- `backend/src/v2/services/crypto/CryptoExchangeAdapter.ts`: Crypto adapters not implemented.
+- `backend/src/v2/services/crypto/CryptoRouter.ts`: Adapters stubbed; needs real exchange implementations.
+- `backend/src/v2/services/crypto/BybitAdapter.ts`: Basic integration; error parsing improved; needs prod hardening.
+- `backend/src/v2/services/crypto/OkxAdapter.ts`: Needs signature validation tests and rate-limit handling.
+- `backend/src/v2/services/crypto/KucoinAdapter.ts`: Needs signature validation tests and rate-limit handling.
+- `backend/src/v2/services/crypto/CryptoExecutionService.ts`: Validates secrets; needs per-exchange secret rotation policies.
+- `backend/src/v2/services/crypto/CryptoRetry.ts`: Jitter/circuit breaker added; tune thresholds per exchange (now configurable).
+- `backend/src/v2/services/crypto/OkxErrorParser.ts`: Error codes externalized; keep map updated.
+- `backend/src/v2/services/crypto/KucoinErrorParser.ts`: Error codes externalized; keep map updated.
+- `backend/src/v2/services/queue/NatsClient.ts`: Retry added; add error handling on subscribe.
+- `backend/src/v2/services/queue/ExecutionQueue.ts`: NATS queue optional; durable consumer now in JetStream.
+- `backend/src/v2/services/queue/ExecutionJetStream.ts`: Basic retry added; add reconnect and monitoring hooks.
+- `backend/src/v2/services/queue/JetStreamHealth.ts`: Basic health check; consider pings and latency.
+- `backend/src/v2/services/queue/JetStreamLagMetrics.ts`: Lag trend added; consider persistence.
+- `backend/src/v2/services/queue/JetStreamResubscribe.ts`: Exponential backoff added; consider caps per env.
+- `backend/src/v2/services/queue/QueueAlerts.ts`: Per-tenant policy + throttling added; add alert routing policy.
+- `backend/src/v2/services/queue/QueueAlertDispatcher.ts`: Retry added; add rate limits.
+- `backend/src/v2/services/queue/QueueAlertThrottle.ts`: Basic cooldown; add per-tenant settings.
+- `backend/src/v2/services/queue/QueueAlertPolicyService.ts`: Validation/defaults added; admin UI added.
+- `backend/src/v2/routes/queuePolicyRoutes.ts`: Validation/audit added; add email/role audit views.
+- `backend/src/v2/services/queue/JetStreamProvisioner.ts`: Retention/limits config added.
+- `backend/src/v2/services/queue/QueueMetrics.ts`: Added consumer info; consider lag/time-series metrics.
+- `backend/src/v2/services/crypto/CryptoErrorRegistry.ts`: DB-backed by default; file fallback on DB error.

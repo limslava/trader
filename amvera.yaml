@@ -22,8 +22,9 @@ run:
     PROTOCOL: http
     
     # Security & Authentication
-    JWT_SECRET: russian-trader-2024-secure-jwt-key-32-chars-min
     JWT_EXPIRES_IN: 24h
+    TRADING_MODE: paper
+    ENABLE_LIVE_TRADING: false
     
     # Database (PostgreSQL)
     DATABASE_URL: postgresql://Trader:312046@amvera-limslava-cnpg-traderbd-rw:5432/russian_trader?schema=public&sslmode=require

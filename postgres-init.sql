@@ -1,7 +1,17 @@
--- Инициализация базы данных Russian Trader
--- Создание таблиц и начальных данных
+-- Инициализация базы данных Russian Trader (V2)
+-- Multi-tenant + execution контур
 
--- Таблица пользователей
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+CREATE TABLE IF NOT EXISTS tenants (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    slug VARCHAR(120) UNIQUE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -14,115 +24,74 @@ CREATE TABLE IF NOT EXISTS users (
     last_login_at TIMESTAMP WITH TIME ZONE
 );
 
--- Таблица портфелей
-CREATE TABLE IF NOT EXISTS portfolios (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS tenant_members (
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    total_value DECIMAL(15,2) DEFAULT 0,
-    total_invested DECIMAL(15,2) DEFAULT 0,
-    total_profit_loss DECIMAL(15,2) DEFAULT 0,
-    total_profit_loss_percentage DECIMAL(8,2) DEFAULT 0,
+    role VARCHAR(20) NOT NULL DEFAULT 'viewer',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (tenant_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS broker_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    broker VARCHAR(30) NOT NULL,
+    account_number VARCHAR(100) NOT NULL,
+    currency VARCHAR(10) NOT NULL,
+    environment VARCHAR(20) NOT NULL DEFAULT 'paper',
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица позиций в портфеле
-CREATE TABLE IF NOT EXISTS portfolio_positions (
-    id SERIAL PRIMARY KEY,
-    portfolio_id INTEGER REFERENCES portfolios(id) ON DELETE CASCADE,
-    asset_symbol VARCHAR(50) NOT NULL,
-    asset_type VARCHAR(20) NOT NULL CHECK (asset_type IN ('stock', 'crypto', 'currency')),
-    quantity DECIMAL(15,8) NOT NULL,
-    average_price DECIMAL(15,2) NOT NULL,
-    current_price DECIMAL(15,2) NOT NULL,
-    total_cost DECIMAL(15,2) NOT NULL,
-    current_value DECIMAL(15,2) NOT NULL,
-    profit_loss DECIMAL(15,2) NOT NULL,
-    profit_loss_percentage DECIMAL(8,2) NOT NULL,
+CREATE TABLE IF NOT EXISTS broker_credentials (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    broker_account_id UUID REFERENCES broker_accounts(id) ON DELETE CASCADE,
+    secret_ref VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS execution_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    broker_account_id UUID REFERENCES broker_accounts(id) ON DELETE SET NULL,
+    symbol VARCHAR(50) NOT NULL,
+    side VARCHAR(10) NOT NULL,
+    order_type VARCHAR(20) NOT NULL,
+    quantity NUMERIC(20,8) NOT NULL,
+    price NUMERIC(20,8),
+    status VARCHAR(30) NOT NULL DEFAULT 'new',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица транзакций
-CREATE TABLE IF NOT EXISTS transactions (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    asset_symbol VARCHAR(50) NOT NULL,
-    asset_type VARCHAR(20) NOT NULL CHECK (asset_type IN ('stock', 'crypto', 'currency')),
-    transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('buy', 'sell')),
-    quantity DECIMAL(15,8) NOT NULL,
-    price DECIMAL(15,2) NOT NULL,
-    commission DECIMAL(15,2) DEFAULT 0,
-    total_amount DECIMAL(15,2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'completed',
-    notes TEXT,
-    timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Таблица аналитических отчетов
-CREATE TABLE IF NOT EXISTS analytics_reports (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    content JSONB NOT NULL,
-    summary TEXT,
-    recommendations JSONB,
+CREATE TABLE IF NOT EXISTS execution_order_events (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES execution_orders(id) ON DELETE CASCADE,
+    event_type VARCHAR(30) NOT NULL,
+    payload JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Таблица уведомлений
-CREATE TABLE IF NOT EXISTS notifications (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    is_read BOOLEAN DEFAULT FALSE,
-    priority VARCHAR(20) DEFAULT 'normal',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS positions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,
+    broker_account_id UUID REFERENCES broker_accounts(id) ON DELETE SET NULL,
+    symbol VARCHAR(50) NOT NULL,
+    quantity NUMERIC(20,8) NOT NULL,
+    avg_price NUMERIC(20,8) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Создание индексов для оптимизации
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-CREATE INDEX IF NOT EXISTS idx_portfolios_user_id ON portfolios(user_id);
-CREATE INDEX IF NOT EXISTS idx_portfolio_positions_portfolio_id ON portfolio_positions(portfolio_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id);
-CREATE INDEX IF NOT EXISTS idx_transactions_timestamp ON transactions(timestamp DESC);
-CREATE INDEX IF NOT EXISTS idx_analytics_reports_user_id ON analytics_reports(user_id);
-CREATE INDEX IF NOT EXISTS idx_analytics_reports_created_at ON analytics_reports(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_read_created ON notifications(is_read, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tenant_members_user ON tenant_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_broker_accounts_tenant ON broker_accounts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_execution_orders_tenant ON execution_orders(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_execution_orders_status ON execution_orders(status);
+CREATE INDEX IF NOT EXISTS idx_positions_tenant ON positions(tenant_id);
 
--- Создание демо-пользователя
-INSERT INTO users (email, username, password_hash, profile, preferences) VALUES
-(
-    'demo@russian-trader.ru',
-    'demo_trader',
-    '$2b$10$examplehash', -- Фиктивный хеш, будет заменен реальным при регистрации
-    '{
-        "firstName": "Демо",
-        "lastName": "Трейдер", 
-        "experienceLevel": "BEGINNER",
-        "riskTolerance": "MEDIUM",
-        "investmentGoals": ["Обучение", "Пассивный доход", "Рост капитала"]
-    }'::JSONB,
-    '{
-        "notifications": {
-            "email": true,
-            "push": true,
-            "priceAlerts": true,
-            "riskAlerts": true
-        },
-        "theme": "LIGHT",
-        "language": "RU",
-        "currency": "RUB",
-        "defaultExchange": "MOEX"
-    }'::JSONB
-) ON CONFLICT (email) DO NOTHING;
-
--- Создание триггера для автоматического обновления updated_at
+-- Триггер для updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -131,14 +100,32 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+CREATE TRIGGER update_tenants_updated_at BEFORE UPDATE ON tenants FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_portfolios_updated_at BEFORE UPDATE ON portfolios FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-CREATE TRIGGER update_portfolio_positions_updated_at BEFORE UPDATE ON portfolio_positions FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_broker_accounts_updated_at BEFORE UPDATE ON broker_accounts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_execution_orders_updated_at BEFORE UPDATE ON execution_orders FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- Сообщение об успешной инициализации
+-- Демо‑тенант и пользователь (минимум для старта)
+INSERT INTO tenants (name, slug, status) VALUES
+('Default Tenant', 'default', 'active')
+ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO users (email, username, password_hash, profile, preferences) VALUES
+(
+    'demo@russian-trader.ru',
+    'demo_trader',
+    '$2b$10$examplehash',
+    '{"firstName": "Demo", "lastName": "Trader"}'::JSONB,
+    '{"theme": "LIGHT", "language": "RU"}'::JSONB
+) ON CONFLICT (email) DO NOTHING;
+
+INSERT INTO tenant_members (tenant_id, user_id, role)
+SELECT t.id, u.id, 'owner'
+FROM tenants t
+JOIN users u ON u.email = 'demo@russian-trader.ru'
+WHERE t.slug = 'default'
+ON CONFLICT DO NOTHING;
+
 DO $$ BEGIN
-    RAISE NOTICE '✅ PostgreSQL база данных Russian Trader успешно инициализирована';
-    RAISE NOTICE '📊 База данных: russian-trader';
-    RAISE NOTICE '👤 Пользователь: trader';
-    RAISE NOTICE '🌐 pgAdmin доступен по адресу: http://localhost:8082';
+    RAISE NOTICE '✅ PostgreSQL база данных Russian Trader (V2) успешно инициализирована';
 END $$;

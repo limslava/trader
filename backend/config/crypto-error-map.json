@@ -1,0 +1,34 @@
+{
+  "okx": {
+    "50001": "Service temporarily unavailable",
+    "50002": "Request timeout",
+    "50013": "System busy",
+    "50114": "Order does not exist",
+    "51000": "Parameter error",
+    "51001": "Order quantity too large",
+    "51002": "Order quantity too small",
+    "51003": "Insufficient balance",
+    "51004": "Instrument not found",
+    "51006": "Order price too high",
+    "51007": "Order price too low",
+    "51008": "Order amount too large",
+    "51009": "Order amount too small",
+    "51010": "Order not supported",
+    "51011": "Order price error",
+    "51012": "Order size error",
+    "51601": "API rate limit exceeded"
+  },
+  "kucoin": {
+    "400100": "Invalid parameter",
+    "400200": "Invalid API key",
+    "400300": "Invalid API signature",
+    "400500": "Invalid passphrase",
+    "400600": "IP restricted",
+    "400700": "Order size too small",
+    "400800": "Order size too large",
+    "400900": "Insufficient balance",
+    "410100": "Order not found",
+    "429000": "Rate limit exceeded",
+    "500000": "Internal error"
+  }
+}
