@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, Percent, Plus, Wallet, X } from 'lucide-re
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, type Operation } from '../api';
+import { TradeDialog } from '../components/TradeDialog';
 import { SandboxBadge } from '../components/TradeTicket';
 import { Button, Empty, ErrorText, Monogram, SectionHeader, Skeleton, Surface } from '../components/ui';
 import { dateTime, money, price } from '../format';
@@ -61,6 +62,8 @@ export function Portfolio() {
   const open = useMutation({ mutationFn: api.openAccount, onSuccess: refresh });
   const payIn = useMutation({ mutationFn: api.payIn, onSuccess: refresh });
   const cancel = useMutation({ mutationFn: api.cancelOrder, onSuccess: refresh });
+  // undefined: dialog closed; '': open with instrument picker; ticker: trade that instrument.
+  const [trade, setTrade] = useState<string>();
 
   if (status.data && !enabled) {
     return (
@@ -112,8 +115,13 @@ export function Portfolio() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
         <SandboxBadge />
+        <Button variant="up" className="ml-auto" onClick={() => setTrade('')}>
+          <Plus className="size-4" aria-hidden />
+          Купить бумагу
+        </Button>
       </div>
       <ErrorText error={pf.error} />
+      {trade !== undefined && <TradeDialog secid={trade || undefined} onClose={() => setTrade(undefined)} />}
 
       <Surface className="p-6 md:p-6">
         {!p ? (
@@ -167,18 +175,18 @@ export function Portfolio() {
       <Surface className="p-5 md:p-5">
         <SectionHeader title="Бумаги" />
         {p?.positions.length === 0 && (
-          <Empty>
-            Пока ничего не куплено. Откройте любую компанию — например, из раздела{' '}
-            <Link to="/market" className="font-semibold text-ink underline">
-              «Рынок»
-            </Link>{' '}
-            — справа будет форма сделки.
-          </Empty>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className="text-sm text-muted">Пока ничего не куплено. Выберите бумагу и купите на виртуальные деньги.</p>
+            <Button variant="up" onClick={() => setTrade('')}>
+              <Plus className="size-4" aria-hidden />
+              Купить первую бумагу
+            </Button>
+          </div>
         )}
         <ul className="divide-y divide-line/70">
           {p?.positions.map((pos) => (
-            <li key={pos.secid}>
-              <Link to={`/s/${pos.secid}`} className="flex items-center gap-4 py-4">
+            <li key={pos.secid} className="flex items-center gap-3">
+              <Link to={`/s/${pos.secid}`} className="flex min-w-0 flex-1 items-center gap-4 py-4">
                 <Monogram secid={pos.secid} />
                 <span className="min-w-0 flex-1">
                   <span className="block font-semibold">{pos.name || pos.secid}</span>
@@ -197,6 +205,9 @@ export function Portfolio() {
                   )}
                 </span>
               </Link>
+              <Button size="sm" onClick={() => setTrade(pos.secid)}>
+                Торговать
+              </Button>
             </li>
           ))}
         </ul>

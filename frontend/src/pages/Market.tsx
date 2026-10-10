@@ -6,8 +6,9 @@ import { api } from '../api';
 import { NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
+import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
-import { Delta, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface } from '../components/ui';
+import { Button, Delta, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface } from '../components/ui';
 import { money, price } from '../format';
 
 type Sort = 'weight' | 'gainers' | 'losers';
@@ -15,6 +16,9 @@ type Sort = 'weight' | 'gainers' | 'losers';
 function Companies() {
   const qc = useQueryClient();
   const [sort, setSort] = useState<Sort>('weight');
+  const [trade, setTrade] = useState<string>();
+  const trading = useQuery({ queryKey: ['tradingStatus'], queryFn: api.tradingStatus, staleTime: Infinity });
+  const canTrade = !!trading.data?.configured && trading.data.sandbox;
   const members = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
   const watchlist = useQuery({ queryKey: ['watchlist'], queryFn: api.watchlist });
   const spark = useSparklines(members.data?.map((m) => m.secid) ?? []);
@@ -65,6 +69,7 @@ function Companies() {
                   Вес <ArrowDownUp className="size-3" aria-hidden />
                 </span>
               </th>
+              {canTrade && <th className="px-2 pb-3" />}
             </tr>
           </thead>
           <tbody>
@@ -102,12 +107,20 @@ function Companies() {
                   </td>
                   <td className="px-2 py-3 text-right text-muted">{q?.price != null ? money(q.price * q.lotSize) : '—'}</td>
                   <td className="px-2 py-3 text-right text-muted">{price(m.weight, 1)}%</td>
+                  {canTrade && (
+                    <td className="px-2 py-3 text-right">
+                      <Button size="sm" variant="up" onClick={() => setTrade(m.secid)}>
+                        Купить
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
+      {trade && <TradeDialog secid={trade} onClose={() => setTrade(undefined)} />}
     </Surface>
   );
 }

@@ -3,8 +3,12 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import type { Signal } from '../api';
 import { pct } from '../format';
 
-export function Surface({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-[18px] border border-line/70 bg-surface shadow-soft ${className}`}>{children}</section>;
+export function Surface({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
+  return (
+    <section id={id} className={`rounded-[18px] border border-line/70 bg-surface shadow-soft ${className}`}>
+      {children}
+    </section>
+  );
 }
 
 export function SectionHeader({ title, subtitle, action }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode }) {

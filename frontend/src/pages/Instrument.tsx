@@ -88,6 +88,15 @@ export function Instrument() {
             <PriceChart secid={secid} levels={levels} height="h-[240px] md:h-[320px]" />
           </Surface>
 
+          {canTrade && (
+            <Surface id="trade" className="scroll-mt-20 p-5 lg:hidden">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold tracking-tight">Сделка</h2>
+                <SandboxBadge />
+              </div>
+              <TradeTicket secid={secid} />
+            </Surface>
+          )}
           <AiVerdict secid={secid} onLevels={setLevels} />
           <KeyStats secid={secid} ind={indicators.data} />
           <Dividends secid={secid} />
@@ -95,7 +104,7 @@ export function Instrument() {
         </div>
 
         {canTrade && (
-          <aside id="trade" className="scroll-mt-24">
+          <aside className="hidden lg:block">
             <div className="lg:sticky lg:top-24">
               <Surface className="p-5">
                 <div className="mb-4 flex items-center justify-between">
