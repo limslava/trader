@@ -1,3 +1,4 @@
+import { Star } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -10,11 +11,11 @@ import { changeColor, pct, price } from '../format';
 
 function Stat({ label, value, sub, hint }: { label: string; value: ReactNode; sub?: ReactNode; hint: string }) {
   return (
-    <div className="rounded-xl border border-line bg-panel p-4">
-      <div className="text-xs text-muted">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
-      {sub && <div className="mt-1 text-sm">{sub}</div>}
-      <p className="mt-2 text-xs leading-relaxed text-muted">{hint}</p>
+    <div className="rounded-2xl border border-line/70 bg-panel p-5 shadow-card">
+      <div className="text-sm font-medium text-muted">{label}</div>
+      <div className="mt-1 text-3xl font-semibold tracking-tight">{value}</div>
+      {sub && <div className="mt-1.5 text-sm font-medium">{sub}</div>}
+      <p className="mt-3 text-[13px] leading-relaxed text-muted">{hint}</p>
     </div>
   );
 }
@@ -77,7 +78,7 @@ export function Market() {
       <Card title="Компании индекса" actions={members.isLoading ? <Spinner className="text-muted" /> : null}>
         <p className="mb-3 text-sm text-muted">
           Крупнейшие и самые ликвидные компании России — с них обычно и начинают. «Вес» — доля компании в индексе.
-          «1 лот» — минимальная сумма для покупки. ☆ добавляет бумагу в вотчлист.
+          «1 лот» — минимальная сумма для покупки. Звёздочка добавляет бумагу в вотчлист.
         </p>
         <ErrorText error={members.error} />
         {members.data && (
@@ -103,10 +104,11 @@ export function Market() {
                         <button
                           onClick={() => toggle.mutate(m.secid)}
                           disabled={toggle.isPending || !watchlist.data}
-                          className={isWatched ? 'text-hold' : 'text-muted hover:text-hold'}
+                          className={`grid size-8 place-items-center rounded-lg ${isWatched ? 'text-hold' : 'text-muted hover:text-hold'}`}
                           title={isWatched ? 'Убрать из вотчлиста' : 'Добавить в вотчлист'}
+                          aria-label={isWatched ? `Убрать ${m.secid} из вотчлиста` : `Добавить ${m.secid} в вотчлист`}
                         >
-                          {isWatched ? '★' : '☆'}
+                          <Star className={`size-4.5 ${isWatched ? 'fill-current' : ''}`} />
                         </button>
                       </td>
                       <td className="px-2 py-2">

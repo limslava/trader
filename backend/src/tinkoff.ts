@@ -22,6 +22,20 @@ export function tinkoffConfigured(): boolean {
   return config.TINKOFF_TOKEN.length > 0;
 }
 
+// Broker errors a beginner can actually run into, in plain Russian.
+const ERRORS_RU: [RegExp, string][] = [
+  [/price is outside the limits/i, 'цена вне допустимого биржей диапазона на сегодня — укажите цену ближе к текущей'],
+  [/not enough (balance|assets|money)/i, 'недостаточно средств на счёте'],
+  [/instrument is not available for trading|trading is not available/i, 'по этой бумаге сейчас нет торгов'],
+  [/order not found/i, 'заявка не найдена — возможно, уже исполнена или снята'],
+  [/account not found/i, 'счёт не найден'],
+  [/rate limit|too many requests/i, 'слишком много запросов, повторите через минуту'],
+];
+
+function translateError(message: string): string {
+  return ERRORS_RU.find(([re]) => re.test(message))?.[1] ?? message;
+}
+
 export async function call<T>(method: string, body: unknown): Promise<T> {
   if (!tinkoffConfigured()) throw new HttpError(503, 'T-Invest не настроен: задайте TINKOFF_TOKEN в .env');
   const res = await fetch(BASE + method, {
@@ -33,7 +47,7 @@ export async function call<T>(method: string, body: unknown): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as { message?: string; description?: string };
   if (!res.ok) {
     console.error(`T-Invest ${method} ${res.status}:`, data);
-    const msg = res.status === 401 ? 'токен T-Invest недействителен или истёк' : (data.message ?? `ошибка ${res.status}`);
+    const msg = res.status === 401 ? 'токен T-Invest недействителен или истёк' : translateError(data.message ?? `ошибка ${res.status}`);
     throw new HttpError(502, `T-Invest: ${msg}`);
   }
   return data as T;

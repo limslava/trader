@@ -140,6 +140,70 @@ export type CompanyInfo =
       } | null;
     };
 
+export type Position = {
+  secid: string;
+  name: string;
+  quantity: number;
+  lots: number;
+  blockedLots: number;
+  averagePrice: number | null;
+  currentPrice: number | null;
+  value: number | null;
+  expectedYield: number | null;
+};
+
+export type Portfolio = {
+  accountId: string;
+  total: number | null;
+  cash: number;
+  blockedCash: number;
+  availableCash: number;
+  positions: Position[];
+};
+
+export type TradeInstrument = {
+  secid: string;
+  name: string;
+  lot: number;
+  minPriceIncrement: number;
+  lastPrice: number | null;
+  lastPriceTime: string | null;
+  canTrade: boolean;
+  marketOrderAvailable: boolean;
+  limitOrderAvailable: boolean;
+  status: string;
+};
+
+export type Order = {
+  orderId: string;
+  secid: string;
+  status: string;
+  statusText: string;
+  direction: 'buy' | 'sell';
+  type: 'market' | 'limit';
+  lotsRequested: number;
+  lotsExecuted: number;
+  price: number | null;
+  executedAmount: number | null;
+  totalAmount: number | null;
+  commission: number | null;
+  createdAt: string | null;
+  message: string | null;
+};
+
+export type Operation = {
+  id: string;
+  date: string;
+  title: string;
+  operationType: string;
+  secid: string | null;
+  quantity: number;
+  price: number | null;
+  payment: number | null;
+};
+
+export type OrderInput = { secid: string; direction: 'buy' | 'sell'; lots: number; type: 'market' | 'limit'; price?: number };
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -190,6 +254,16 @@ export const api = {
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),
   analyze: (secid: string, question?: string) => request<Analysis>('POST', `/analysis/${enc(secid)}`, { question }),
   deleteAnalysis: (id: number) => request('DELETE', `/analysis/${id}`),
+
+  tradingStatus: () => request<{ configured: boolean; sandbox: boolean }>('GET', '/trading/status'),
+  openAccount: (amount: number) => request('POST', '/trading/account', { amount }),
+  payIn: (amount: number) => request('POST', '/trading/account/payin', { amount }),
+  portfolio: () => request<Portfolio>('GET', '/trading/portfolio'),
+  tradeInstrument: (secid: string) => request<TradeInstrument>('GET', `/trading/instrument/${enc(secid)}`),
+  orders: () => request<Order[]>('GET', '/trading/orders'),
+  placeOrder: (input: OrderInput) => request<Order>('POST', '/trading/orders', input),
+  cancelOrder: (orderId: string) => request('DELETE', `/trading/orders/${enc(orderId)}`),
+  operations: () => request<Operation[]>('GET', '/trading/operations'),
 
   reviews: (scope: ReviewScope) => request<Review[]>('GET', `/review?scope=${scope}`),
   createReview: (scope: ReviewScope) => request<Review>('POST', '/review', { scope }),

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { Search } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { api } from '../api';
 
@@ -38,8 +39,10 @@ export function SearchBox() {
   };
 
   return (
-    <div ref={boxRef} className="relative w-full max-w-md">
+    <div ref={boxRef} className="relative w-full">
+      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted" aria-hidden />
       <input
+        aria-label="Поиск бумаги"
         value={text}
         onChange={(e) => {
           setText(e.target.value);
@@ -53,11 +56,11 @@ export function SearchBox() {
           else if (e.key === 'Enter' && data[active]) go(data[active].secid);
           else if (e.key === 'Escape') setOpen(false);
         }}
-        placeholder="Поиск: тикер или название (SBER, Газпром, TMOS…)"
-        className="w-full rounded-lg border border-line bg-panel-2 px-3 py-2 text-sm outline-none placeholder:text-muted focus:border-accent"
+        placeholder="Найти акцию: SBER, Газпром…"
+        className="w-full rounded-xl border border-transparent bg-panel-2 py-2.5 pr-3 pl-9 text-sm outline-none transition placeholder:text-muted focus:border-accent focus:bg-panel"
       />
       {open && query.length >= 2 && (
-        <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-auto rounded-lg border border-line bg-panel shadow-xl">
+        <ul className="absolute z-30 mt-2 max-h-80 w-full overflow-auto rounded-xl border border-line bg-panel py-1 shadow-xl">
           {data.length === 0 && (
             <li className="px-3 py-2 text-sm text-muted">{isFetching ? 'Ищу…' : 'Ничего не найдено'}</li>
           )}

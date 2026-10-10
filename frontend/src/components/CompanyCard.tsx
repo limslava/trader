@@ -1,3 +1,4 @@
+import { Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api, type Dividend } from '../api';
 import { date, money, price } from '../format';
@@ -19,14 +20,14 @@ function DividendRow({ d, upcoming }: { d: Dividend; upcoming?: boolean }) {
     <tr className={`border-t border-line ${upcoming ? 'bg-up/5' : ''}`}>
       <td className="px-3 py-2">{upcoming ? <span className="font-semibold text-up">{date(d.lastBuyDate)}</span> : date(d.lastBuyDate)}</td>
       <td className="px-3 py-2 text-muted">{date(d.recordDate)}</td>
-      <td className="px-3 py-2 text-right">{d.amount != null ? `${price(d.amount, d.amount < 10 ? 2 : 0)} ₽` : '—'}</td>
+      <td className="px-3 py-2 text-right">{d.amount != null ? `${price(d.amount, Number.isInteger(d.amount) ? 0 : 2)} ₽` : '—'}</td>
       <td className="px-3 py-2 text-right">{d.yieldPct != null ? `${price(d.yieldPct, 1)}%` : '—'}</td>
       <td className="px-3 py-2 text-muted">{date(d.paymentDate)}</td>
     </tr>
   );
 }
 
-export function CompanyCard({ secid }: { secid: string }) {
+export function CompanyCard({ secid, plain }: { secid: string; plain?: boolean }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['company', secid],
     queryFn: () => api.company(secid),
@@ -35,7 +36,7 @@ export function CompanyCard({ secid }: { secid: string }) {
 
   if (data && !data.configured) {
     return (
-      <Card title="Отчётность и дивиденды">
+      <Card plain={plain} title="Отчётность и дивиденды">
         <p className="text-sm text-muted">Подключите T-Invest API (TINKOFF_TOKEN в backend/.env), чтобы видеть отчётность и дивиденды.</p>
       </Card>
     );
@@ -49,7 +50,7 @@ export function CompanyCard({ secid }: { secid: string }) {
   const fields = data?.configured ? Object.entries(data.labels).filter(([k]) => f?.[k] != null) : [];
 
   return (
-    <Card title="Отчётность и дивиденды" actions={isLoading ? <Spinner className="text-muted" /> : null}>
+    <Card plain={plain} title="Отчётность и дивиденды" actions={isLoading ? <Spinner className="text-muted" /> : null}>
       <ErrorText error={error} />
       {data?.configured && !info && <Empty>Данные Т-Инвестиций сейчас недоступны.</Empty>}
       {info && !f && !divs?.upcoming.length && !divs?.recent.length && (
@@ -65,7 +66,7 @@ export function CompanyCard({ secid }: { secid: string }) {
               <div key={key} className="rounded-lg bg-panel-2 px-3 py-2" title={HINTS[key]}>
                 <div className="text-xs text-muted">
                   {label}
-                  {HINTS[key] && <span className="ml-1 opacity-60">ⓘ</span>}
+                  {HINTS[key] && <Info className="ml-1 inline size-3 opacity-60" aria-hidden />}
                 </div>
                 <div className={`mt-0.5 text-sm font-medium ${negative ? 'text-down' : ''}`}>
                   {MONEY_FIELDS.has(key) ? money(v) : price(v, 2)}

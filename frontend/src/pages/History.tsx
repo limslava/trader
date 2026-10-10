@@ -21,7 +21,7 @@ export function History() {
                 <span className="text-muted">@ {price(a.price)}</span>
                 <span className="ml-auto text-xs text-muted">{dateTime(a.createdAt)}</span>
               </div>
-              <p className="line-clamp-2 text-sm text-slate-300">{a.result.summary}</p>
+              <p className="line-clamp-2 text-sm text-fg-2">{a.result.summary}</p>
             </Link>
           </li>
         ))}

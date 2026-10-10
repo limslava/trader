@@ -1,3 +1,4 @@
+import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Card } from '../components/ui';
@@ -5,18 +6,18 @@ import { Card } from '../components/ui';
 function Item({ title, children, open }: { title: string; children: ReactNode; open?: boolean }) {
   return (
     <details open={open} className="group border-t border-line py-3 first:border-t-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-slate-100">
+      <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-fg">
         {title}
-        <span className="text-muted transition group-open:rotate-90">›</span>
+        <ChevronRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
       </summary>
-      <div className="mt-2 space-y-2 text-sm leading-relaxed text-slate-300">{children}</div>
+      <div className="mt-2 space-y-2 text-sm leading-relaxed text-fg-2">{children}</div>
     </details>
   );
 }
 
 const Term = ({ name, children }: { name: string; children: ReactNode }) => (
   <p>
-    <span className="font-semibold text-slate-100">{name}</span> — {children}
+    <span className="font-semibold text-fg">{name}</span> — {children}
   </p>
 );
 
@@ -24,7 +25,7 @@ export function Learn() {
   return (
     <div className="space-y-4">
       <Card title="Как пользоваться приложением">
-        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-slate-300">
+        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-fg-2">
           <li>
             Откройте{' '}
             <Link to="/market" className="text-accent hover:underline">
@@ -33,18 +34,26 @@ export function Learn() {
             и нажмите «Сделать обзор»: AI объяснит, что сейчас происходит на рынке и какие из 44 крупнейших компаний
             технически сильнее или слабее.
           </li>
-          <li>Добавьте интересные бумаги в вотчлист (☆) — это ваш список для наблюдения.</li>
+          <li>Добавьте интересные бумаги в вотчлист (звёздочка) — это ваш список для наблюдения.</li>
           <li>
             На странице бумаги нажмите «Проанализировать». Можно задать свой вопрос, например: «у меня 50 000 ₽, стоит ли
             брать?» — AI посчитает лоты и подскажет, как действовать.
           </li>
           <li>Перед покупкой загляните в блоки «Отчётность и дивиденды» и «Новости компании».</li>
+          <li>
+            Потренируйтесь в{' '}
+            <Link to="/portfolio" className="text-accent hover:underline">
+              «Портфеле»
+            </Link>
+            : это песочница Т-Инвестиций с виртуальными деньгами. Купите и продайте пару бумаг, посмотрите, как
+            исполняются рыночные и лимитные заявки, — без риска потерять настоящие деньги.
+          </li>
           <li>Решение принимаете вы. Не торопитесь: рынок работает каждый день, хороших моментов будет много.</li>
         </ol>
       </Card>
 
       <Card title="Как читать сигналы AI">
-        <div className="space-y-2 text-sm leading-relaxed text-slate-300">
+        <div className="space-y-2 text-sm leading-relaxed text-fg-2">
           <Term name="Покупать">
             по графику и индикаторам больше аргументов за рост. Можно присмотреться к покупке — но всё равно проверьте
             новости и не вкладывайте всю сумму сразу.
@@ -85,13 +94,20 @@ export function Learn() {
         <Item title="Как купить: брокер, лоты, комиссии">
           <p>
             Купить бумаги можно только через брокера (Т-Инвестиции, Сбер, ВТБ, Альфа, Финам и др.) — нужно открыть
-            брокерский счёт в его приложении. Это приложение (Trader) только анализирует и ничего не покупает.
+            брокерский счёт в его приложении. В Trader можно торговать только в песочнице на виртуальные деньги —
+            реальные сделки вы совершаете в приложении брокера.
           </p>
           <Term name="Лот">
             минимальное количество бумаг в одной покупке. На странице «Рынок» есть колонка «1 лот» — это минимальная
             сумма для покупки.
           </Term>
           <Term name="Комиссия">брокер берёт процент с каждой сделки — частые сделки съедают доход.</Term>
+          <Term name="Заявка «по рынку»">
+            покупка или продажа сразу по текущей цене. Быстро, но цена может немного отличаться от той, что вы видели.
+          </Term>
+          <Term name="Лимитная заявка">
+            вы сами указываете цену, и сделка пройдёт, только когда рынок до неё дойдёт. Если не дойдёт — заявка снимется.
+          </Term>
         </Item>
         <Item title="Налоги и ИИС">
           <p>
@@ -147,7 +163,7 @@ export function Learn() {
       </Card>
 
       <Card title="Словарь индикаторов">
-        <div className="space-y-2 text-sm leading-relaxed text-slate-300">
+        <div className="space-y-2 text-sm leading-relaxed text-fg-2">
           <Term name="SMA 20/50/200 (скользящая средняя)">
             средняя цена за 20/50/200 дней. Цена выше средней — тренд вверх; ниже 200-дневной — долгосрочно бумага
             слабая.

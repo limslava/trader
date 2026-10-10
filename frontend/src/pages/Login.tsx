@@ -35,7 +35,7 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Пароль"
-          className="w-full rounded-lg border border-line bg-panel-2 px-3 py-2 outline-none focus:border-accent"
+          className="w-full rounded-xl border border-line bg-panel px-3 py-2 outline-none focus:border-accent"
         />
         <ErrorText error={error} />
         <Button type="submit" variant="primary" className="w-full py-2" disabled={busy || !password}>

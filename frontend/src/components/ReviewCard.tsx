@@ -16,7 +16,7 @@ function Picks({ title, picks, color }: { title: string; picks: ReviewPick[]; co
             <Link to={`/s/${p.secid}`} className={`font-semibold ${color} hover:underline`}>
               {p.secid}
             </Link>
-            <span className="text-slate-300"> — {p.reason}</span>
+            <span className="text-fg-2"> — {p.reason}</span>
           </li>
         ))}
       </ul>
@@ -76,7 +76,7 @@ export function ReviewCard({ scope, canRun, count }: Props) {
             <select
               value={review?.id}
               onChange={(e) => setSelectedId(Number(e.target.value))}
-              className="rounded-md border border-line bg-panel-2 px-2 py-1 text-xs text-slate-300"
+              className="rounded-md border border-line bg-panel-2 px-2 py-1 text-xs text-fg-2"
             >
               {list.map((r) => (
                 <option key={r.id} value={r.id}>
@@ -108,8 +108,8 @@ export function ReviewCard({ scope, canRun, count }: Props) {
         <div className="space-y-5">
           <SimpleBox text={review.result.simple} />
           <div>
-            <p className="text-[15px] leading-relaxed text-slate-100">{review.result.summary}</p>
-            {review.result.market && <p className="mt-2 text-sm text-slate-400">{review.result.market}</p>}
+            <p className="text-[15px] leading-relaxed text-fg">{review.result.summary}</p>
+            {review.result.market && <p className="mt-2 text-sm text-fg-2">{review.result.market}</p>}
           </div>
 
           <div className="grid gap-5 md:grid-cols-2">
@@ -133,7 +133,7 @@ export function ReviewCard({ scope, canRun, count }: Props) {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-slate-300">{item.comment}</p>
+                  <p className="text-sm text-fg-2">{item.comment}</p>
                 </li>
               );
             })}
@@ -147,7 +147,7 @@ export function ReviewCard({ scope, canRun, count }: Props) {
           {review.result.risks.length > 0 && (
             <div>
               <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-hold">Риски</h3>
-              <ul className="space-y-1 text-sm text-slate-300">
+              <ul className="space-y-1 text-sm text-fg-2">
                 {review.result.risks.map((r, i) => (
                   <li key={i} className="flex gap-2">
                     <span className="text-hold">•</span>

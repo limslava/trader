@@ -13,7 +13,7 @@ function List({ title, items, color }: { title: string; items: string[]; color: 
   return (
     <div>
       <h3 className={`mb-1.5 text-xs font-semibold uppercase tracking-wide ${color}`}>{title}</h3>
-      <ul className="space-y-1 text-sm text-slate-300">
+      <ul className="space-y-1 text-sm text-fg-2">
         {items.map((item, i) => (
           <li key={i} className="flex gap-2">
             <span className={color}>•</span>
@@ -28,27 +28,27 @@ function List({ title, items, color }: { title: string; items: string[]; color: 
 export function AnalysisView({ analysis }: { analysis: Analysis }) {
   const r = analysis.result;
   return (
-    <div className="space-y-5">
+    <div className="@container space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <SignalBadge signal={r.signal} confidence={r.confidence} size="lg" />
         <span className="text-sm text-muted">горизонт: {HORIZON[r.horizon]}</span>
-        <span className="ml-auto text-xs text-muted">
+        <span className="text-xs text-muted @lg:ml-auto">
           {dateTime(analysis.createdAt)} · цена {price(analysis.price)} · {analysis.model}
         </span>
       </div>
 
       <SimpleBox text={r.simple} />
-      <p className="text-[15px] leading-relaxed text-slate-100">{r.summary}</p>
-      {r.trend && <p className="text-sm text-slate-300">{r.trend}</p>}
+      <p className="text-[15px] leading-relaxed text-fg">{r.summary}</p>
+      {r.trend && <p className="text-sm text-fg-2">{r.trend}</p>}
 
       {analysis.question && (
         <div className="rounded-lg border border-line bg-panel-2 p-3">
           <p className="text-xs text-muted">Вопрос: {analysis.question}</p>
-          {r.answer && <p className="mt-1.5 text-sm text-slate-200">{r.answer}</p>}
+          {r.answer && <p className="mt-1.5 text-sm text-fg">{r.answer}</p>}
         </div>
       )}
 
-      <div className="grid gap-5 md:grid-cols-3">
+      <div className="grid gap-5 @3xl:grid-cols-3">
         <List title="За рост" items={r.bullish} color="text-up" />
         <List title="За падение" items={r.bearish} color="text-down" />
         <List title="Риски" items={r.risks} color="text-hold" />
@@ -68,7 +68,7 @@ export function AnalysisView({ analysis }: { analysis: Analysis }) {
       )}
 
       {r.plan && (
-        <p className="border-l-2 border-accent pl-3 text-sm text-slate-300">
+        <p className="border-l-2 border-accent pl-3 text-sm text-fg-2">
           <span className="text-muted">Когда пересмотреть: </span>
           {r.plan}
         </p>
