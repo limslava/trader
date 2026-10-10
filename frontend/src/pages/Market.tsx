@@ -29,7 +29,7 @@ function Companies() {
   );
 
   return (
-    <Surface className="p-5 md:p-7">
+    <Surface className="p-5 md:p-5">
       <SectionHeader
         title="Крупнейшие компании"
         subtitle="44 бумаги индекса Мосбиржи — с них обычно начинают"
@@ -120,15 +120,15 @@ export function Market() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Рынок</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Рынок</h1>
         <p className="mt-1 text-muted">Московская биржа сегодня</p>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Surface className="p-5 md:p-7">
+        <Surface className="p-5 md:p-5">
           <div className="text-sm font-medium text-muted">Индекс Мосбиржи · IMOEX</div>
-          <div className="mt-1 mb-4 text-5xl font-semibold tracking-[-0.03em]">{imoex ? price(imoex.value) : <Skeleton className="h-12 w-48" />}</div>
-          <PriceChart secid="IMOEX" height="h-[280px] md:h-[320px]" />
+          <div className="mt-1 mb-4 text-4xl font-semibold tracking-[-0.025em]">{imoex ? price(imoex.value) : <Skeleton className="h-11 w-48" />}</div>
+          <PriceChart secid="IMOEX" height="h-[240px] md:h-[280px]" />
         </Surface>
         <div className="grid gap-3">
           {[
@@ -152,7 +152,7 @@ export function Market() {
           ].map((s) => (
             <Surface key={s.label} className="p-5">
               <div className="text-sm font-medium text-muted">{s.label}</div>
-              <div className="mt-1 text-3xl font-semibold tracking-tight">{s.value}</div>
+              <div className="mt-1 text-2xl font-semibold tracking-tight">{s.value}</div>
               <p className="mt-2 text-[13px] leading-relaxed text-muted">{s.hint}</p>
             </Surface>
           ))}

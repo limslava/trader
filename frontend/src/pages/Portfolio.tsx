@@ -19,7 +19,7 @@ function AmountForm({ cta, onSubmit, busy, initial = '100000' }: { cta: string; 
   };
   return (
     <form onSubmit={submit} className="flex flex-wrap items-center gap-2">
-      <label className="flex h-12 items-center gap-2 rounded-full border border-line bg-surface px-5">
+      <label className="flex h-11 items-center gap-2 rounded-full border border-line bg-surface px-5">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -64,8 +64,8 @@ export function Portfolio() {
 
   if (status.data && !enabled) {
     return (
-      <Surface className="p-8">
-        <h1 className="text-2xl font-semibold">Портфель</h1>
+      <Surface className="p-6">
+        <h1 className="text-xl font-semibold">Портфель</h1>
         <p className="mt-2 text-muted">
           {status.data.configured
             ? 'Торговля в приложении работает только в песочнице (TINKOFF_SANDBOX=true).'
@@ -77,12 +77,12 @@ export function Portfolio() {
 
   if (noAccount) {
     return (
-      <section className="relative overflow-hidden rounded-[28px] bg-primary p-8 text-on-primary md:p-12">
+      <section className="relative overflow-hidden rounded-[22px] bg-primary p-6 text-on-primary md:p-9">
         <div className="pointer-events-none absolute -top-32 -right-24 size-96 rounded-full bg-gradient-to-br from-accent/50 to-accent-2/40 blur-3xl" />
         <div className="relative max-w-xl">
           <Wallet className="mb-6 size-10 opacity-80" aria-hidden />
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Учебный счёт</h1>
-          <p className="mt-3 text-[17px] leading-relaxed opacity-75">
+          <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Учебный счёт</h1>
+          <p className="mt-3 text-[15px] leading-relaxed opacity-75">
             Песочница Т-Инвестиций: цены и сделки — как на настоящей бирже, а деньги виртуальные. Попробуйте купить первую акцию
             без всякого риска.
           </p>
@@ -111,19 +111,19 @@ export function Portfolio() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Портфель</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Портфель</h1>
         <SandboxBadge />
       </div>
       <ErrorText error={pf.error} />
 
-      <Surface className="p-6 md:p-8">
+      <Surface className="p-6 md:p-6">
         {!p ? (
           <Skeleton className="h-40" />
         ) : (
           <>
             <div className="text-sm font-medium text-muted">Стоимость портфеля</div>
             <div className="mt-1 flex flex-wrap items-baseline gap-3">
-              <span className="text-5xl font-semibold tracking-[-0.03em] md:text-6xl">{money(p.total)}</span>
+              <span className="text-4xl font-semibold tracking-[-0.025em] md:text-5xl">{money(p.total)}</span>
               {totalYield !== 0 && (
                 <span className={`text-lg font-semibold ${totalYield > 0 ? 'text-up' : 'text-down'}`}>
                   {totalYield > 0 ? '+' : ''}
@@ -165,7 +165,7 @@ export function Portfolio() {
         )}
       </Surface>
 
-      <Surface className="p-5 md:p-7">
+      <Surface className="p-5 md:p-5">
         <SectionHeader title="Бумаги" />
         {p?.positions.length === 0 && (
           <Empty>
@@ -204,7 +204,7 @@ export function Portfolio() {
       </Surface>
 
       {!!orders.data?.length && (
-        <Surface className="p-5 md:p-7">
+        <Surface className="p-5 md:p-5">
           <SectionHeader title="Активные заявки" subtitle="Неисполненные заявки песочница снимает в конце торговой сессии" />
           <ul className="divide-y divide-line/70">
             {orders.data.map((o) => (
@@ -228,8 +228,8 @@ export function Portfolio() {
         </Surface>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Surface className="p-5 md:p-7">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
+        <Surface className="p-5 md:p-5">
           <SectionHeader title="История операций" />
           {ops.data?.length === 0 && <Empty>Операций пока нет.</Empty>}
           <ul className="divide-y divide-line/70">
@@ -256,7 +256,7 @@ export function Portfolio() {
         </Surface>
 
         {p && (
-          <Surface className="h-fit p-5 md:p-7">
+          <Surface className="h-fit p-5 md:p-5">
             <SectionHeader title="Пополнить" subtitle="Виртуальные рубли, лимит 30 млн ₽ всего" />
             <AmountForm cta="Пополнить" onSubmit={(v) => payIn.mutate(v)} busy={payIn.isPending} initial="50000" />
             <div className="mt-2">

@@ -75,7 +75,7 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
   const items = review ? (expanded ? review.result.items : review.result.items.slice(0, COLLAPSED)) : [];
 
   return (
-    <section className="ai-frame rounded-[22px] p-5 shadow-soft md:p-7">
+    <section className="ai-frame rounded-[18px] p-5 shadow-soft md:p-5">
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 text-white">
           <Sparkles className="size-5" aria-hidden />
@@ -123,7 +123,7 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
 
       {review && (
         <div className="space-y-5">
-          <p className="text-[17px] leading-relaxed text-ink">{review.result.summary}</p>
+          <p className="text-[15px] leading-relaxed text-ink">{review.result.summary}</p>
           <SimpleBox text={review.result.simple} />
           {review.result.market && <p className="text-sm leading-relaxed text-muted">{review.result.market}</p>}
 

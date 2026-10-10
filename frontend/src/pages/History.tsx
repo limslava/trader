@@ -19,11 +19,11 @@ export function History() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">История</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">История</h1>
         <p className="mt-1 text-muted">Все AI-вердикты по бумагам</p>
       </div>
       <ErrorText error={error} />
-      {isLoading && <Skeleton className="h-64 rounded-[22px]" />}
+      {isLoading && <Skeleton className="h-64 rounded-[18px]" />}
       {data?.length === 0 && (
         <Surface className="p-6">
           <Empty>Анализов пока нет. Откройте любую компанию и нажмите «Получить вердикт».</Empty>
@@ -50,7 +50,7 @@ export function History() {
                         </span>
                       </span>
                       {a.question && <span className="mt-1 block text-sm text-muted">«{a.question}»</span>}
-                      <span className="mt-1.5 line-clamp-2 block text-[15px] leading-relaxed text-ink-2">{a.result.summary}</span>
+                      <span className="mt-1.5 line-clamp-2 block text-sm leading-relaxed text-ink-2">{a.result.summary}</span>
                     </span>
                   </Link>
                 );

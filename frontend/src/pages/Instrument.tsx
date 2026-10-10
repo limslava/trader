@@ -32,7 +32,7 @@ export function Instrument() {
   const q = quote.data;
   if (quote.error) {
     return (
-      <Surface className="p-8">
+      <Surface className="p-6">
         <ErrorText error={quote.error} />
         <Link to="/market" className="mt-3 inline-block text-sm font-semibold text-accent">
           Открыть список компаний
@@ -53,7 +53,7 @@ export function Instrument() {
         <div className="flex min-w-0 items-center gap-4">
           <Monogram secid={secid} size="lg" />
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-semibold tracking-tight md:text-3xl">{q?.shortname ?? secid}</h1>
+            <h1 className="truncate text-xl font-semibold tracking-tight md:text-2xl">{q?.shortname ?? secid}</h1>
             <p className="truncate text-sm text-muted">
               {secid} · {q?.name}
             </p>
@@ -72,20 +72,20 @@ export function Instrument() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-6">
-          <Surface className="p-5 md:p-7">
+          <Surface className="p-5 md:p-5">
             {q ? (
               <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-5xl font-semibold tracking-[-0.03em] md:text-6xl">{price(q.price, q.decimals)}</span>
-                <span className="text-2xl font-medium text-muted">₽</span>
+                <span className="text-4xl font-semibold tracking-[-0.025em] md:text-5xl">{price(q.price, q.decimals)}</span>
+                <span className="text-xl font-medium text-muted">₽</span>
                 <Delta value={q.changePct} size="lg" suffix="сегодня" />
                 {q.updateTime && <span className="text-xs text-muted">· {q.updateTime} МСК</span>}
               </div>
             ) : (
-              <Skeleton className="mb-4 h-16 w-64" />
+              <Skeleton className="mb-4 h-14 w-64" />
             )}
-            <PriceChart secid={secid} levels={levels} height="h-[300px] md:h-[380px]" />
+            <PriceChart secid={secid} levels={levels} height="h-[240px] md:h-[320px]" />
           </Surface>
 
           <AiVerdict secid={secid} onLevels={setLevels} />

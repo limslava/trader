@@ -78,7 +78,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             }}
             placeholder="Тикер или компания: SBER, Яндекс, Лукойл…"
             aria-label="Тикер или название компании"
-            className="h-16 flex-1 bg-transparent text-lg outline-none placeholder:text-muted"
+            className="h-14 flex-1 bg-transparent text-lg outline-none placeholder:text-muted"
           />
           {search.isFetching && <Spinner className="text-muted" />}
           <kbd className="rounded-md bg-surface-2 px-1.5 py-0.5 text-xs text-muted">Esc</kbd>

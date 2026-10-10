@@ -68,7 +68,7 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
   const meta = a ? SIGNAL_META[a.signal] : null;
 
   return (
-    <section className="ai-frame rounded-[22px] p-5 shadow-soft md:p-7">
+    <section className="ai-frame rounded-[18px] p-5 shadow-soft md:p-5">
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <span className="grid size-10 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 text-white">
           <Sparkles className="size-5" aria-hidden />
@@ -102,12 +102,12 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
           <div className="flex items-center gap-5">
             <ConfidenceRing value={a.confidence} signal={a.signal} />
             <div className="min-w-0">
-              <div className={`text-2xl font-semibold tracking-tight md:text-3xl ${meta.tone}`}>{meta.verdict}</div>
+              <div className={`text-xl font-semibold tracking-tight md:text-2xl ${meta.tone}`}>{meta.verdict}</div>
               <div className="mt-1 text-sm text-muted">Горизонт — {HORIZON[r.horizon]}</div>
             </div>
           </div>
 
-          <p className="text-[16px] leading-relaxed text-ink">{r.summary}</p>
+          <p className="text-[15px] leading-relaxed text-ink">{r.summary}</p>
           <SimpleBox text={r.simple} />
 
           {a.question && r.answer && (
@@ -116,7 +116,7 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
                 <MessageCircleQuestion className="size-3.5" aria-hidden />
                 {a.question}
               </div>
-              <p className="text-[15px] leading-relaxed">{r.answer}</p>
+              <p className="text-sm leading-relaxed">{r.answer}</p>
             </div>
           )}
 
@@ -166,7 +166,7 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
       )}
 
       {!history.isLoading && !a && (
-        <p className="mb-2 text-[15px] leading-relaxed text-ink-2">
+        <p className="mb-2 text-sm leading-relaxed text-ink-2">
           Получите взвешенный разбор: стоит ли присматриваться к покупке, держать или лучше обойти — и почему. Можно задать свой
           вопрос, например про конкретную сумму.
         </p>

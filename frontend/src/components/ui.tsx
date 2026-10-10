@@ -4,14 +4,14 @@ import type { Signal } from '../api';
 import { pct } from '../format';
 
 export function Surface({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-[22px] border border-line/70 bg-surface shadow-soft ${className}`}>{children}</section>;
+  return <section className={`rounded-[18px] border border-line/70 bg-surface shadow-soft ${className}`}>{children}</section>;
 }
 
 export function SectionHeader({ title, subtitle, action }: { title: ReactNode; subtitle?: ReactNode; action?: ReactNode }) {
   return (
     <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
         {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
       </div>
       {action}
@@ -33,7 +33,7 @@ export function Button({ variant = 'secondary', size = 'md', className = '', ...
     down: 'bg-down text-white hover:opacity-90 dark:text-bg',
     ai: 'bg-gradient-to-r from-accent to-accent-2 text-white shadow-[0_8px_24px_-10px_var(--accent)] hover:brightness-110',
   }[variant];
-  const sizes = { sm: 'h-8 px-3 text-xs', md: 'h-10 px-4 text-sm', lg: 'h-12 px-6 text-[15px]' }[size];
+  const sizes = { sm: 'h-7 px-3 text-xs', md: 'h-9 px-4 text-sm', lg: 'h-10 px-5 text-sm' }[size];
   return (
     <button
       className={`inline-flex items-center justify-center gap-2 rounded-full font-semibold transition duration-150 active:scale-[0.98] disabled:opacity-40 disabled:active:scale-100 ${sizes} ${styles} ${className}`}
@@ -47,7 +47,7 @@ export function Delta({ value, size = 'md', suffix }: { value: number | null | u
   const v = value ?? 0;
   const tone = v > 0 ? 'bg-up/12 text-up' : v < 0 ? 'bg-down/12 text-down' : 'bg-surface-2 text-muted';
   const Icon = v < 0 ? ArrowDownRight : ArrowUpRight;
-  const sizes = { sm: 'px-1.5 py-0.5 text-xs gap-0.5', md: 'px-2 py-0.5 text-sm gap-0.5', lg: 'px-3 py-1 text-base gap-1' }[size];
+  const sizes = { sm: 'px-1.5 py-0.5 text-[11px] gap-0.5', md: 'px-2 py-0.5 text-xs gap-0.5', lg: 'px-2.5 py-0.5 text-sm gap-0.5' }[size];
   return (
     <span className={`inline-flex items-center rounded-full font-semibold whitespace-nowrap ${tone} ${sizes}`}>
       {v !== 0 && <Icon className={size === 'lg' ? 'size-4' : 'size-3.5'} strokeWidth={2.5} aria-hidden />}
@@ -96,7 +96,7 @@ export function SignalBadge({ signal, confidence }: { signal: Signal; confidence
 }
 
 /** Circular gauge for AI confidence. */
-export function ConfidenceRing({ value, signal, size = 76 }: { value: number; signal: Signal; size?: number }) {
+export function ConfidenceRing({ value, signal, size = 64 }: { value: number; signal: Signal; size?: number }) {
   const r = (size - 8) / 2;
   const c = 2 * Math.PI * r;
   const color = { BUY: 'var(--up)', HOLD: 'var(--hold)', SELL: 'var(--down)' }[signal];
@@ -119,7 +119,7 @@ export function ConfidenceRing({ value, signal, size = 76 }: { value: number; si
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center leading-none">
         <div>
-          <div className="text-lg font-semibold">{Math.round(value * 100)}%</div>
+          <div className="text-base font-semibold">{Math.round(value * 100)}%</div>
           <div className="mt-0.5 text-[10px] text-muted">уверенность</div>
         </div>
       </div>
@@ -131,7 +131,7 @@ export function Stat({ label, value, sub, hint }: { label: ReactNode; value: Rea
   return (
     <div title={hint}>
       <div className="text-xs font-medium text-muted">{label}</div>
-      <div className="mt-1 text-[15px] font-semibold tracking-tight">{value}</div>
+      <div className="mt-0.5 text-sm font-semibold tracking-tight">{value}</div>
       {sub && <div className="mt-0.5 text-xs">{sub}</div>}
     </div>
   );
@@ -181,7 +181,7 @@ export function Segmented<T extends string>({
           aria-selected={o.value === value}
           onClick={() => onChange(o.value)}
           className={`flex-1 rounded-full font-semibold whitespace-nowrap transition duration-150 ${
-            size === 'sm' ? 'px-3 py-1 text-xs' : 'px-4 py-1.5 text-sm'
+            size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3.5 py-1 text-sm'
           } ${o.value === value ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}`}
         >
           {o.label}
@@ -197,14 +197,14 @@ export function SimpleBox({ text }: { text?: string }) {
   return (
     <div className="rounded-2xl bg-surface-2 p-4">
       <div className="mb-1 text-xs font-semibold text-muted">Простыми словами</div>
-      <p className="text-[15px] leading-relaxed text-ink">{text}</p>
+      <p className="text-sm leading-relaxed text-ink">{text}</p>
     </div>
   );
 }
 
 /** Ticker monogram used in place of company logos. */
 export function Monogram({ secid, size = 'md' }: { secid: string; size?: 'sm' | 'md' | 'lg' }) {
-  const sizes = { sm: 'size-9 text-[10px] rounded-xl', md: 'size-11 text-xs rounded-2xl', lg: 'size-14 text-sm rounded-[18px]' }[size];
+  const sizes = { sm: 'size-8 text-[9px] rounded-[10px]', md: 'size-9 text-[10px] rounded-xl', lg: 'size-11 text-xs rounded-2xl' }[size];
   return (
     <span className={`grid shrink-0 place-items-center bg-primary font-bold tracking-tight text-on-primary ${sizes}`} aria-hidden>
       {secid.slice(0, 4)}

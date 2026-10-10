@@ -6,13 +6,13 @@ import { SectionHeader, Surface } from '../components/ui';
 function Item({ title, children, open }: { title: string; children: ReactNode; open?: boolean }) {
   return (
     <details open={open} className="group border-t border-line/70 py-4 first:border-t-0 first:pt-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[17px] font-semibold">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[15px] font-semibold">
         {title}
         <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2">
           <ChevronRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
         </span>
       </summary>
-      <div className="mt-3 space-y-2.5 text-[15px] leading-relaxed text-ink-2">{children}</div>
+      <div className="mt-3 space-y-2.5 text-sm leading-relaxed text-ink-2">{children}</div>
     </details>
   );
 }
@@ -27,12 +27,12 @@ export function Learn() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Обучение</h1>
-        <p className="mt-2 text-[17px] text-muted">Всё, что нужно начинающему инвестору, — коротко и без воды.</p>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Обучение</h1>
+        <p className="mt-2 text-[15px] text-muted">Всё, что нужно начинающему инвестору, — коротко и без воды.</p>
       </div>
-      <Surface className="p-6 md:p-8">
+      <Surface className="p-6 md:p-6">
         <SectionHeader title="Как пользоваться приложением" />
-        <ol className="list-decimal space-y-3 pl-5 text-[15px] leading-relaxed text-ink-2 marker:font-semibold marker:text-muted">
+        <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-ink-2 marker:font-semibold marker:text-muted">
           <li>
             Откройте{' '}
             <Link to="/market" className="font-semibold text-ink underline">
@@ -59,9 +59,9 @@ export function Learn() {
         </ol>
       </Surface>
 
-      <Surface className="p-6 md:p-8">
+      <Surface className="p-6 md:p-6">
         <SectionHeader title="Как читать сигналы AI" />
-        <div className="space-y-3 text-[15px] leading-relaxed text-ink-2">
+        <div className="space-y-3 text-sm leading-relaxed text-ink-2">
           <Term name="Покупать">
             по графику и индикаторам больше аргументов за рост. Можно присмотреться к покупке — но всё равно проверьте
             новости и не вкладывайте всю сумму сразу.
@@ -84,7 +84,7 @@ export function Learn() {
         </div>
       </Surface>
 
-      <Surface className="p-6 md:p-8">
+      <Surface className="p-6 md:p-6">
         <SectionHeader title="Основы" />
         <Item title="Что можно купить на Мосбирже" open>
           <Term name="Акция">доля в компании. Растёт, если компания и рынок растут; может приносить дивиденды.</Term>
@@ -171,9 +171,9 @@ export function Learn() {
         </Item>
       </Surface>
 
-      <Surface className="p-6 md:p-8">
+      <Surface className="p-6 md:p-6">
         <SectionHeader title="Словарь индикаторов" />
-        <div className="space-y-3 text-[15px] leading-relaxed text-ink-2">
+        <div className="space-y-3 text-sm leading-relaxed text-ink-2">
           <Term name="SMA 20/50/200 (скользящая средняя)">
             средняя цена за 20/50/200 дней. Цена выше средней — тренд вверх; ниже 200-дневной — долгосрочно бумага
             слабая.

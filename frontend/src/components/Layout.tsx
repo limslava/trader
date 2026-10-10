@@ -19,7 +19,7 @@ function MarketStrip() {
   const { data } = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
   if (!data) return null;
   return (
-    <div className="hidden items-center gap-6 text-sm lg:flex">
+    <div className="hidden items-center gap-5 text-sm lg:flex">
       {data.imoex && (
         <div className="flex items-baseline gap-2" title="Индекс Мосбиржи, изменение за неделю">
           <span className="text-muted">IMOEX</span>
@@ -69,29 +69,29 @@ export function Layout() {
     window.location.href = '/';
   };
 
-  const railBtn = 'grid size-11 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-ink';
+  const railBtn = 'grid size-9 place-items-center rounded-xl text-muted transition hover:bg-surface-2 hover:text-ink';
   const isMac = navigator.platform.toLowerCase().includes('mac');
 
   return (
-    <div className="min-h-dvh md:pl-[84px]">
+    <div className="min-h-dvh md:pl-[72px]">
       {/* Desktop: slim icon rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[84px] flex-col items-center border-r border-line/70 bg-surface py-5 md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[72px] flex-col items-center border-r border-line/70 bg-surface py-5 md:flex">
         <NavLink to="/" aria-label="Trader — обзор">
-          <img src="/favicon.svg" alt="" className="size-10" />
+          <img src="/favicon.svg" alt="" className="size-9" />
         </NavLink>
-        <nav className="mt-8 flex flex-col gap-2" aria-label="Разделы">
+        <nav className="mt-6 flex flex-col gap-1" aria-label="Разделы">
           {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `group flex w-16 flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-medium transition ${
+                `group flex w-14 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[10px] font-medium transition ${
                   isActive ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-ink'
                 }`
               }
             >
-              <Icon className="size-5" strokeWidth={1.75} aria-hidden />
+              <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
               {label}
             </NavLink>
           ))}
@@ -107,7 +107,7 @@ export function Layout() {
       </aside>
 
       <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4 md:px-8">
+        <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-4 px-4 md:px-8">
           <NavLink to="/" className="md:hidden" aria-label="Trader — обзор">
             <img src="/favicon.svg" alt="" className="size-9" />
           </NavLink>
@@ -128,7 +128,7 @@ export function Layout() {
         </div>
       </header>
 
-      <main key={pathname} className="mx-auto max-w-[1400px] animate-rise px-4 pt-6 pb-28 md:px-8 md:pb-12">
+      <main key={pathname} className="mx-auto max-w-[1280px] animate-rise px-4 pt-6 pb-28 md:px-8 md:pb-12">
         <Outlet />
       </main>
 
@@ -144,7 +144,7 @@ export function Layout() {
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium ${isActive ? 'text-ink' : 'text-muted'}`
+                `flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium ${isActive ? 'text-ink' : 'text-muted'}`
               }
             >
               {({ isActive }) => (

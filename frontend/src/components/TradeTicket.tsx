@@ -58,12 +58,12 @@ function Confirm({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm text-muted">{buy ? 'Покупка' : 'Продажа'}</div>
-            <div className="text-2xl font-semibold tracking-tight">{input.secid}</div>
+            <div className="text-xl font-semibold tracking-tight">{input.secid}</div>
             <div className="text-sm text-muted">{name}</div>
           </div>
           <SandboxBadge />
         </div>
-        <div className="text-4xl font-semibold tracking-tight">{money(amount)}</div>
+        <div className="text-3xl font-semibold tracking-tight">{money(amount)}</div>
         <div className="space-y-2 rounded-2xl bg-surface-2 p-4">
           <Row k="Количество" v={`${input.lots} лот. · ${input.lots * lot} шт.`} />
           <Row k="Тип" v={input.type === 'market' ? 'По рынку' : `Лимит ${price(input.price)} ₽`} />
@@ -181,7 +181,7 @@ export function TradeTicket({ secid }: { secid: string }) {
       <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-2 p-2">
         <button
           onClick={() => setLots((l) => Math.max(1, l - 1))}
-          className="grid size-11 place-items-center rounded-xl bg-surface text-ink shadow-sm transition active:scale-95"
+          className="grid size-10 place-items-center rounded-xl bg-surface text-ink shadow-sm transition active:scale-95"
           aria-label="Меньше лотов"
         >
           <Minus className="size-4" />
@@ -192,7 +192,7 @@ export function TradeTicket({ secid }: { secid: string }) {
             onChange={(e) => setLots(Math.max(1, Number(e.target.value.replace(/\D/g, '')) || 1))}
             inputMode="numeric"
             aria-label="Количество лотов"
-            className="w-20 bg-transparent text-center text-2xl font-semibold outline-none"
+            className="w-20 bg-transparent text-center text-xl font-semibold outline-none"
           />
           <div className="text-xs text-muted">
             лот · {lots * i.lot} шт.
@@ -200,7 +200,7 @@ export function TradeTicket({ secid }: { secid: string }) {
         </div>
         <button
           onClick={() => setLots((l) => l + 1)}
-          className="grid size-11 place-items-center rounded-xl bg-surface text-ink shadow-sm transition active:scale-95"
+          className="grid size-10 place-items-center rounded-xl bg-surface text-ink shadow-sm transition active:scale-95"
           aria-label="Больше лотов"
         >
           <Plus className="size-4" />

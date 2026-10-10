@@ -68,7 +68,7 @@ export function KeyStats({ secid, ind }: { secid: string; ind?: Indicators }) {
   const fields = KEY_FIELDS.filter(([k]) => f?.[k] != null);
 
   return (
-    <Surface className="p-5 md:p-7">
+    <Surface className="p-5 md:p-5">
       <SectionHeader title="Ключевые показатели" subtitle={f ? 'Отчётность за последние 12 месяцев' : undefined} />
       {company.isLoading && <Skeleton className="h-24" />}
       {fields.length > 0 && (
@@ -134,7 +134,7 @@ export function Dividends({ secid }: { secid: string }) {
   const canStillBuy = next && (next.lastBuyDate ?? '') >= today;
 
   return (
-    <Surface className="p-5 md:p-7">
+    <Surface className="p-5 md:p-5">
       <SectionHeader title="Дивиденды" subtitle="После отсечки цена обычно падает примерно на размер выплаты — это нормально" />
       {next && (
         <div className={`mb-4 flex gap-3 rounded-2xl p-4 ${canStillBuy ? 'bg-up/10' : 'bg-hold/10'}`}>
@@ -173,7 +173,7 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
     staleTime: 15 * 60_000,
   });
   return (
-    <Surface className="p-5 md:p-7">
+    <Surface className="p-5 md:p-5">
       <SectionHeader title={title} subtitle="Заголовки за 2 недели — AI учитывает их в анализе" action={action} />
       <ErrorText error={error} />
       {isLoading && <Skeleton className="h-40" />}
@@ -183,7 +183,7 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
           <li key={n.url}>
             <a href={n.url} target="_blank" rel="noreferrer noopener" className="group flex gap-3 py-3">
               <span className="min-w-0 flex-1">
-                <span className="block text-[15px] leading-snug font-medium group-hover:underline">{n.title}</span>
+                <span className="block text-sm leading-snug font-medium group-hover:underline">{n.title}</span>
                 <span className="mt-1 block text-xs text-muted">
                   {n.source}
                   {n.publishedAt && ` · ${dateTime(n.publishedAt)}`}

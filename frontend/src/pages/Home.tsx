@@ -17,24 +17,24 @@ function MarketPulse() {
   const spark = useSparklines(['IMOEX']);
   const imoex = ctx.data?.imoex;
   return (
-    <Surface className="flex flex-col p-6 md:p-8 lg:col-span-2">
+    <Surface className="flex flex-col p-6 md:p-6 lg:col-span-2">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="text-sm font-medium text-muted">Индекс Мосбиржи</div>
           {imoex ? (
             <div className="mt-1 flex flex-wrap items-baseline gap-3">
-              <span className="text-5xl font-semibold tracking-[-0.03em]">{price(imoex.value)}</span>
+              <span className="text-4xl font-semibold tracking-[-0.025em]">{price(imoex.value)}</span>
               <Delta value={imoex.change1wPct} size="lg" suffix="за неделю" />
             </div>
           ) : (
-            <Skeleton className="mt-2 h-12 w-56" />
+            <Skeleton className="mt-2 h-11 w-56" />
           )}
         </div>
         <Link to="/market" className="flex items-center gap-1 text-sm font-semibold text-ink-2 hover:text-ink">
           Рынок <ArrowRight className="size-4" aria-hidden />
         </Link>
       </div>
-      <div className="my-6 h-28">
+      <div className="my-6 h-24">
         <Sparkline data={spark.data?.IMOEX} width={600} height={112} stretch />
       </div>
       <div className="mt-auto grid grid-cols-3 gap-4 border-t border-line/70 pt-5">
@@ -63,12 +63,12 @@ function AccountCard() {
   const invested = pf.data?.positions.reduce((a, p) => a + (p.value ?? 0), 0) ?? 0;
 
   return (
-    <section className="relative flex min-h-72 flex-col gap-6 overflow-hidden rounded-[22px] bg-primary p-6 text-on-primary shadow-soft md:p-8">
+    <section className="relative flex min-h-64 flex-col gap-5 overflow-hidden rounded-[18px] bg-primary p-6 text-on-primary shadow-soft md:p-6">
       <div className="pointer-events-none absolute -top-24 -right-24 size-64 rounded-full bg-gradient-to-br from-accent/50 to-accent-2/40 blur-3xl" />
       <div className="relative text-sm font-medium opacity-60">Учебный счёт · песочница</div>
       {pf.data ? (
         <>
-          <div className="relative mt-1 text-4xl font-semibold tracking-[-0.03em]">{money(pf.data.total)}</div>
+          <div className="relative mt-1 text-3xl font-semibold tracking-[-0.025em]">{money(pf.data.total)}</div>
           <div className="relative mt-6 grid grid-cols-2 gap-4 text-sm">
             <div>
               <div className="opacity-60">Свободно</div>
@@ -81,7 +81,7 @@ function AccountCard() {
           </div>
         </>
       ) : (
-        <p className="relative mt-3 text-[15px] leading-relaxed opacity-80">
+        <p className="relative mt-3 text-sm leading-relaxed opacity-80">
           {noAccount
             ? 'Потренируйтесь покупать и продавать на виртуальные деньги — цены настоящие, риска нет.'
             : enabled
@@ -104,7 +104,7 @@ function AiIdea() {
   const r = reviews.data?.[0];
   const top = r?.result.top.slice(0, 3) ?? [];
   return (
-    <section className="ai-frame rounded-[22px] p-6 shadow-soft md:p-8">
+    <section className="ai-frame rounded-[18px] p-6 shadow-soft md:p-6">
       <div className="mb-4 flex items-center gap-2 text-sm font-semibold">
         <Sparkles className="size-4 text-accent" aria-hidden />
         Идеи AI на сегодня
@@ -124,7 +124,7 @@ function AiIdea() {
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-xl text-[15px] leading-relaxed text-ink-2">
+          <p className="max-w-xl text-sm leading-relaxed text-ink-2">
             Не знаете, с чего начать? AI разберёт 44 крупнейшие компании и покажет, какие сейчас выглядят сильнее всего.
           </p>
           <Link to="/market" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-on-primary">
@@ -143,12 +143,12 @@ function Watchlist() {
     <div>
       <SectionHeader title="Вотчлист" subtitle="Бумаги, за которыми вы следите" />
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-        {wl.isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-40 rounded-[22px]" />)}
+        {wl.isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-40 rounded-[18px]" />)}
         {wl.data?.map((w) => (
           <Link
             key={w.secid}
             to={`/s/${w.secid}`}
-            className="group rounded-[22px] border border-line/70 bg-surface p-4 shadow-soft transition hover:-translate-y-0.5 md:p-5"
+            className="group rounded-[18px] border border-line/70 bg-surface p-4 shadow-soft transition hover:-translate-y-0.5 md:p-5"
           >
             <div className="flex items-center gap-3">
               <Monogram secid={w.secid} size="sm" />
@@ -164,7 +164,7 @@ function Watchlist() {
                 />
               )}
             </div>
-            <div className="my-4 h-12">
+            <div className="my-4 h-11">
               <Sparkline data={spark.data?.[w.secid]} width={200} height={48} stretch />
             </div>
             <div className="flex items-end justify-between gap-2">
@@ -175,7 +175,7 @@ function Watchlist() {
         ))}
         <Link
           to="/market"
-          className="grid min-h-40 place-items-center rounded-[22px] border border-dashed border-line p-4 text-center text-sm font-medium text-muted transition hover:border-ink/30 hover:text-ink"
+          className="grid min-h-40 place-items-center rounded-[18px] border border-dashed border-line p-4 text-center text-sm font-medium text-muted transition hover:border-ink/30 hover:text-ink"
         >
           <span>
             <Plus className="mx-auto mb-2 size-5" aria-hidden />
@@ -234,10 +234,10 @@ export function Home() {
   const today = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div>
         <p className="text-sm font-medium text-muted first-letter:uppercase">{today}</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl">{greeting()}</h1>
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">{greeting()}</h1>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
         <MarketPulse />
