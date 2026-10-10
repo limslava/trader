@@ -35,7 +35,7 @@ const SYSTEM_PROMPT = `Ты — аналитик российского фонд
 - Уровни поддержки/сопротивления бери из реальных экстремумов и скользящих средних в данных.
 - confidence отражает силу и согласованность сигналов (0.5 — неопределённость). Не завышай.
 - Если данных мало или картина противоречивая — выбирай HOLD.
-- Пиши по-русски, кратко, без воды.
+- Пиши по-русски, кратко, без воды. Не используй названия полей из данных (change3mPct, sma200, high52w) — пиши по-человечески: «за 3 месяца», «SMA200», «52-недельный максимум».
 
 Ответ — строго JSON-объект без markdown:
 {
@@ -95,29 +95,25 @@ async function chat(messages: { role: string; content: string }[]): Promise<stri
   return content;
 }
 
-function parseResult(content: string): AnalysisResult {
+function parseJson<T>(content: string, schema: z.ZodType<T>): T {
   // Strip a ```json fence if the model added one despite instructions.
   const json = content.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');
-  return analysisResultSchema.parse(JSON.parse(json));
+  return schema.parse(JSON.parse(json));
 }
 
-export async function analyze(
-  quote: Quote,
-  indicators: IndicatorSnapshot,
-  daily: Candle[],
-  question?: string,
-): Promise<AnalysisResult> {
+/** Calls the model expecting JSON matching `schema`, with one repair attempt on invalid output. */
+async function askJson<T>(system: string, user: string, schema: z.ZodType<T>): Promise<T> {
   if (!aiConfigured()) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
 
   const messages = [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: buildUserPrompt(quote, indicators, daily, question) },
+    { role: 'system', content: system },
+    { role: 'user', content: user },
   ];
   const first = await chat(messages);
   try {
-    return parseResult(first);
+    return parseJson(first, schema);
   } catch (err) {
-    // One repair attempt: show the model its own output and the validation error.
+    // Show the model its own output and the validation error.
     const reason = err instanceof Error ? err.message : String(err);
     const second = await chat([
       ...messages,
@@ -125,9 +121,83 @@ export async function analyze(
       { role: 'user', content: `Ответ не прошёл проверку схемы: ${reason.slice(0, 500)}. Верни исправленный JSON целиком.` },
     ]);
     try {
-      return parseResult(second);
+      return parseJson(second, schema);
     } catch {
       throw new HttpError(502, 'AI вернул ответ в неверном формате, попробуйте ещё раз');
     }
   }
+}
+
+export function analyze(
+  quote: Quote,
+  indicators: IndicatorSnapshot,
+  daily: Candle[],
+  question?: string,
+): Promise<AnalysisResult> {
+  return askJson(SYSTEM_PROMPT, buildUserPrompt(quote, indicators, daily, question), analysisResultSchema);
+}
+
+// --- Watchlist review: one call comparing all watched instruments ---
+
+const signal = z.preprocess((v) => String(v).toUpperCase(), z.enum(['BUY', 'SELL', 'HOLD']));
+const confidence = z.preprocess((v) => {
+  const n = Number(v);
+  return n > 1 ? n / 100 : n;
+}, z.number().min(0).max(1));
+const pick = z.object({ secid: z.string(), reason: z.string() });
+
+export const reviewResultSchema = z.object({
+  summary: z.string().min(1),
+  market: z.string().default(''),
+  items: z.array(z.object({ secid: z.string(), signal, confidence, comment: z.string() })),
+  top: z.array(pick).max(5).catch([]),
+  avoid: z.array(pick).max(5).catch([]),
+  risks: strings,
+});
+
+export type ReviewResult = z.infer<typeof reviewResultSchema>;
+
+export type ReviewInput = {
+  secid: string;
+  name: string;
+  price: number | null;
+  changeTodayPct: number;
+  indicators: IndicatorSnapshot;
+  recentCloses: number[];
+};
+
+const REVIEW_PROMPT = `Ты — аналитик российского фондового рынка (MOEX). Делаешь сравнительный технический обзор вотчлиста частного инвестора.
+
+Правила:
+- Опирайся ТОЛЬКО на переданные данные (индикаторы и последние дневные закрытия по каждой бумаге). Новостей и отчётности у тебя нет — не выдумывай их.
+- Сравнивай бумаги между собой: у кого сильнее импульс, кто перекуплен/перепродан, кто слабее рынка.
+- Если по нескольким бумагам картина одинаковая (например, всё растёт вместе с индексом) — отметь это как общий фактор.
+- confidence отражает силу и согласованность сигналов (0.5 — неопределённость). Не завышай. При противоречиях — HOLD.
+- В items должна быть КАЖДАЯ бумага из входных данных, ровно один раз, с secid как во входе.
+- top — до 3 самых интересных для покупки сейчас, avoid — до 3 самых слабых. Могут быть пустыми, если таких нет.
+- Пиши по-русски, кратко, ссылайся на значения индикаторов. Не используй названия полей из данных (change3mPct, sma200, high52w) — пиши по-человечески: «за 3 месяца», «SMA200», «52-недельный максимум».
+
+Ответ — строго JSON-объект без markdown:
+{
+  "summary": "3-4 предложения: главный вывод по вотчлисту в целом",
+  "market": "одно предложение: общая картина/корреляция бумаг",
+  "items": [{ "secid": "SBER", "signal": "BUY" | "SELL" | "HOLD", "confidence": 0..1, "comment": "1-2 предложения" }],
+  "top": [{ "secid": "...", "reason": "почему" }],
+  "avoid": [{ "secid": "...", "reason": "почему" }],
+  "risks": ["общие риски по вотчлисту"]
+}`;
+
+export async function reviewWatchlist(inputs: ReviewInput[]): Promise<ReviewResult> {
+  const result = await askJson(REVIEW_PROMPT, JSON.stringify({ instruments: inputs }), reviewResultSchema);
+  // Keep only instruments we actually sent, in watchlist order, one entry each.
+  const known = new Set(inputs.map((i) => i.secid));
+  const bySecid = new Map(result.items.map((i) => [i.secid.toUpperCase(), { ...i, secid: i.secid.toUpperCase() }]));
+  const onlyKnown = (picks: { secid: string; reason: string }[]) =>
+    picks.map((p) => ({ ...p, secid: p.secid.toUpperCase() })).filter((p) => known.has(p.secid));
+  return {
+    ...result,
+    items: inputs.flatMap((i) => bySecid.get(i.secid) ?? []),
+    top: onlyKnown(result.top),
+    avoid: onlyKnown(result.avoid),
+  };
 }

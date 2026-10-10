@@ -77,6 +77,24 @@ export type Analysis = {
   indicators: Indicators;
 };
 
+export type ReviewPick = { secid: string; reason: string };
+
+export type Review = {
+  id: number;
+  createdAt: string;
+  model: string;
+  secids: string[];
+  result: {
+    summary: string;
+    market: string;
+    items: { secid: string; signal: Signal; confidence: number; comment: string }[];
+    top: ReviewPick[];
+    avoid: ReviewPick[];
+    risks: string[];
+  };
+  snapshot: { secid: string; name: string; price: number | null; changeTodayPct: number; indicators: Indicators }[];
+};
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -120,4 +138,8 @@ export const api = {
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),
   analyze: (secid: string, question?: string) => request<Analysis>('POST', `/analysis/${enc(secid)}`, { question }),
   deleteAnalysis: (id: number) => request('DELETE', `/analysis/${id}`),
+
+  reviews: () => request<Review[]>('GET', '/review'),
+  createReview: () => request<Review>('POST', '/review'),
+  deleteReview: (id: number) => request('DELETE', `/review/${id}`),
 };

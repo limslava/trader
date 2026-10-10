@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../api';
+import { ReviewCard } from '../components/ReviewCard';
 import { Card, Empty, ErrorText, SignalBadge, Spinner } from '../components/ui';
 import { changeColor, dateTime, money, pct, price } from '../format';
 
@@ -69,6 +70,8 @@ export function Dashboard() {
           </div>
         )}
       </Card>
+
+      <ReviewCard canRun={!!ai?.configured} watchCount={data?.length ?? 0} />
     </div>
   );
 }

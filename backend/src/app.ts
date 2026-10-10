@@ -10,6 +10,7 @@ import { pool } from './db.js';
 import { HttpError } from './http.js';
 import { analysisRouter } from './routes/analysis.js';
 import { marketRouter } from './routes/market.js';
+import { reviewRouter } from './routes/review.js';
 import { watchlistRouter } from './routes/watchlist.js';
 
 export function createApp() {
@@ -28,6 +29,7 @@ export function createApp() {
   app.use('/api/market', requireAuth, marketRouter);
   app.use('/api/watchlist', requireAuth, watchlistRouter);
   app.use('/api/analysis', requireAuth, analysisRouter);
+  app.use('/api/review', requireAuth, reviewRouter);
   app.use('/api', (_req, _res) => {
     throw new HttpError(404, 'Not found');
   });
