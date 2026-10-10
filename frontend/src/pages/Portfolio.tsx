@@ -111,7 +111,6 @@ export function Portfolio() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Портфель</h1>
         <SandboxBadge />
       </div>
       <ErrorText error={pf.error} />

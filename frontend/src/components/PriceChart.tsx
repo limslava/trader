@@ -39,9 +39,11 @@ type Props = {
   levels?: { support: number[]; resistance: number[] };
   height?: string;
   defaultPeriod?: PeriodKey;
+  /** Stretch to the parent's height instead of a fixed one. */
+  fill?: boolean;
 };
 
-export function PriceChart({ secid, levels, height = 'h-[360px]', defaultPeriod = '6M' }: Props) {
+export function PriceChart({ secid, levels, height = 'h-[360px]', defaultPeriod = '6M', fill = false }: Props) {
   const [periodKey, setPeriodKey] = useState<PeriodKey>(defaultPeriod);
   const [mode, setMode] = useState<'area' | 'candles'>('area');
   const period = PERIODS.find((p) => p.key === periodKey)!;
@@ -133,11 +135,17 @@ export function PriceChart({ secid, levels, height = 'h-[360px]', defaultPeriod 
     }
 
     chart.timeScale().fitContent();
-    return () => chart.remove();
+    // The container may still be growing (flex layouts); refit whenever its size changes.
+    const ro = new ResizeObserver(() => chart.timeScale().fitContent());
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      chart.remove();
+    };
   }, [data, levels, period.interval, theme, mode, first, last]);
 
   return (
-    <div>
+    <div className={fill ? 'flex h-full flex-col' : ''}>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
         <div className="flex h-7 items-center gap-2 text-sm">
           {change !== null && (
@@ -161,7 +169,7 @@ export function PriceChart({ secid, levels, height = 'h-[360px]', defaultPeriod 
         </div>
       </div>
       <ErrorText error={error} />
-      <div className={`relative w-full ${height}`}>
+      <div className={`relative w-full ${fill ? 'min-h-[240px] flex-1' : height}`}>
         {isLoading && <div className="skeleton absolute inset-0 rounded-2xl" aria-hidden />}
         <div ref={containerRef} className="absolute inset-0" />
       </div>

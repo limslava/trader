@@ -119,16 +119,13 @@ export function Market() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Рынок</h1>
-        <p className="mt-1 text-muted">Московская биржа сегодня</p>
-      </div>
-
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <Surface className="p-5 md:p-5">
+        <Surface className="flex flex-col p-5">
           <div className="text-sm font-medium text-muted">Индекс Мосбиржи · IMOEX</div>
           <div className="mt-1 mb-4 text-4xl font-semibold tracking-[-0.025em]">{imoex ? price(imoex.value) : <Skeleton className="h-11 w-48" />}</div>
-          <PriceChart secid="IMOEX" height="h-[240px] md:h-[280px]" />
+          <div className="min-h-[300px] flex-1">
+            <PriceChart secid="IMOEX" fill />
+          </div>
         </Surface>
         <div className="grid gap-3">
           {[

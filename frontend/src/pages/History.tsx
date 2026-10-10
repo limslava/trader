@@ -17,11 +17,7 @@ export function History() {
   const { data, isLoading, error } = useQuery({ queryKey: ['analyses', 'all'], queryFn: () => api.analyses() });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">История</h1>
-        <p className="mt-1 text-muted">Все AI-вердикты по бумагам</p>
-      </div>
+    <div className="space-y-5">
       <ErrorText error={error} />
       {isLoading && <Skeleton className="h-64 rounded-[18px]" />}
       {data?.length === 0 && (

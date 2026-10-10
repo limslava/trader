@@ -25,11 +25,7 @@ const Term = ({ name, children }: { name: string; children: ReactNode }) => (
 
 export function Learn() {
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">Обучение</h1>
-        <p className="mt-2 text-[15px] text-muted">Всё, что нужно начинающему инвестору, — коротко и без воды.</p>
-      </div>
+    <div className="grid items-start gap-5 xl:grid-cols-2">
       <Surface className="p-6 md:p-6">
         <SectionHeader title="Как пользоваться приложением" />
         <ol className="list-decimal space-y-3 pl-5 text-sm leading-relaxed text-ink-2 marker:font-semibold marker:text-muted">

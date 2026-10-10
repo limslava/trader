@@ -46,7 +46,7 @@ function Picks({ title, picks, tone }: { title: string; picks: ReviewPick[]; ton
   );
 }
 
-const COLLAPSED = 6;
+const COLLAPSED = 8;
 
 export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRun: boolean; count: number }) {
   const qc = useQueryClient();
@@ -123,20 +123,23 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
 
       {review && (
         <div className="space-y-5">
-          <p className="text-[15px] leading-relaxed text-ink">{review.result.summary}</p>
-          <SimpleBox text={review.result.simple} />
-          {review.result.market && <p className="text-sm leading-relaxed text-muted">{review.result.market}</p>}
-
-          <div className="grid gap-3 md:grid-cols-2">
-            <Picks title="Сильнее всего" picks={review.result.top} tone="up" />
-            <Picks title="Слабее всего" picks={review.result.avoid} tone="down" />
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <div className="space-y-4">
+              <p className="text-[15px] leading-relaxed text-ink">{review.result.summary}</p>
+              <SimpleBox text={review.result.simple} />
+              {review.result.market && <p className="text-sm leading-relaxed text-muted">{review.result.market}</p>}
+            </div>
+            <div className="grid content-start gap-3 md:grid-cols-2 xl:grid-cols-1">
+              <Picks title="Сильнее всего" picks={review.result.top} tone="up" />
+              <Picks title="Слабее всего" picks={review.result.avoid} tone="down" />
+            </div>
           </div>
 
           <div>
             <h3 className="mb-2 text-sm font-semibold">По каждой бумаге</h3>
-            <ul className="divide-y divide-line/70">
+            <ul className="grid gap-x-8 xl:grid-cols-2">
               {items.map((it) => (
-                <li key={it.secid}>
+                <li key={it.secid} className="border-t border-line/70">
                   <Link to={`/s/${it.secid}`} className="flex flex-col gap-1.5 py-3 sm:flex-row sm:items-start sm:gap-4">
                     <span className="flex w-56 shrink-0 items-center gap-2">
                       <span className="w-14 font-semibold">{it.secid}</span>

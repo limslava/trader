@@ -234,10 +234,10 @@ export function Home() {
   const today = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-medium text-muted first-letter:uppercase">{today}</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight md:text-3xl">{greeting()}</h1>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <h1 className="text-xl font-semibold tracking-tight">{greeting()}</h1>
+        <p className="text-sm text-muted first-letter:uppercase">{today}</p>
       </div>
       <div className="grid gap-3 lg:grid-cols-3">
         <MarketPulse />

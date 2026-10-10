@@ -7,6 +7,14 @@ import { pct, price } from '../format';
 import { useTheme } from '../theme';
 import { CommandPalette } from './CommandPalette';
 
+// Section title shown in the header; instrument pages render their own hero.
+const TITLES: Record<string, string> = {
+  '/market': 'Рынок',
+  '/portfolio': 'Портфель',
+  '/history': 'История',
+  '/learn': 'Обучение',
+};
+
 const NAV = [
   { to: '/', label: 'Обзор', Icon: House, end: true },
   { to: '/market', label: 'Рынок', Icon: LineChart, end: false },
@@ -107,10 +115,11 @@ export function Layout() {
       </aside>
 
       <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-4 px-4 md:px-8">
+        <div className="flex h-14 items-center gap-4 px-4 md:px-6">
           <NavLink to="/" className="md:hidden" aria-label="Trader — обзор">
             <img src="/favicon.svg" alt="" className="size-9" />
           </NavLink>
+          {TITLES[pathname] && <h1 className="hidden shrink-0 text-lg font-semibold tracking-tight md:block">{TITLES[pathname]}</h1>}
           <button
             onClick={() => setPaletteOpen(true)}
             className="flex h-11 w-full max-w-md items-center gap-3 rounded-full border border-line/70 bg-surface px-4 text-sm text-muted shadow-soft transition hover:text-ink"
@@ -128,7 +137,7 @@ export function Layout() {
         </div>
       </header>
 
-      <main key={pathname} className="mx-auto max-w-[1280px] animate-rise px-4 pt-6 pb-28 md:px-8 md:pb-12">
+      <main key={pathname} className="animate-rise px-4 pt-4 pb-28 md:px-6 md:pb-8">
         <Outlet />
       </main>
 
