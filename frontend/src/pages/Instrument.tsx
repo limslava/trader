@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AnalysisView } from '../components/AnalysisView';
 import { IndicatorsGrid } from '../components/IndicatorsGrid';
+import { NewsCard } from '../components/NewsList';
 import { PriceChart } from '../components/PriceChart';
 import { Button, Card, Empty, ErrorText, SignalBadge, Spinner } from '../components/ui';
 import { changeColor, dateTime, pct, price } from '../format';
@@ -149,6 +150,8 @@ export function Instrument() {
           </div>
         )}
       </Card>
+
+      <NewsCard secid={secid} title="Новости компании" />
     </div>
   );
 }

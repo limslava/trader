@@ -115,6 +115,8 @@ export type MarketContext = {
   usdRub: { rate: number; date: string } | null;
 };
 
+export type NewsItem = { title: string; source: string; url: string; publishedAt: string };
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -149,6 +151,8 @@ export const api = {
   quote: (secid: string) => request<Quote>('GET', `/market/quote/${enc(secid)}`),
   context: () => request<MarketContext>('GET', '/market/context'),
   imoex: () => request<ImoexMember[]>('GET', '/market/imoex'),
+  marketNews: () => request<NewsItem[]>('GET', '/market/news'),
+  news: (secid: string) => request<NewsItem[]>('GET', `/market/news/${enc(secid)}`),
   candles: (secid: string, interval: number, from: string) =>
     request<Candle[]>('GET', `/market/candles/${enc(secid)}?interval=${interval}&from=${from}`),
 

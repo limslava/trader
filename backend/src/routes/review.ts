@@ -6,6 +6,7 @@ import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
+import { getNewsSafe, headlines, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { daysAgo, getCandles, getIndexComposition, getQuotes } from '../moex.js';
 
 export const reviewRouter = Router();
@@ -13,7 +14,16 @@ export const reviewRouter = Router();
 const MAX_WATCHLIST_ITEMS = 30;
 const scopeSchema = z.enum(['watchlist', 'imoex']).catch('watchlist');
 
-type Row = { id: number; created_at: Date; model: string; scope: string; secids: string[]; result: unknown; snapshot: unknown };
+type Row = {
+  id: number;
+  created_at: Date;
+  model: string;
+  scope: string;
+  secids: string[];
+  result: unknown;
+  snapshot: unknown;
+  news: unknown;
+};
 
 const toDto = (r: Row) => ({
   id: r.id,
@@ -23,6 +33,7 @@ const toDto = (r: Row) => ({
   secids: r.secids,
   result: r.result,
   snapshot: r.snapshot,
+  news: r.news,
 });
 
 reviewRouter.get('/', async (req, res) => {
@@ -51,7 +62,11 @@ async function scopeSecids(scope: 'watchlist' | 'imoex'): Promise<string[]> {
 reviewRouter.post('/', async (req, res) => {
   const scope = scopeSchema.parse(req.body?.scope);
   const secids = await scopeSecids(scope);
-  const [quoteList, market] = await Promise.all([getQuotes(secids), getMarketContext()]);
+  const [quoteList, market, marketNews] = await Promise.all([
+    getQuotes(secids),
+    getMarketContext(),
+    getNewsSafe(MARKET_NEWS_QUERY, 7, 15),
+  ]);
   const quotes = new Map(quoteList.map((q) => [q.secid, q]));
 
   // Fetch history in small batches to stay polite with MOEX ISS.
@@ -70,8 +85,9 @@ reviewRouter.post('/', async (req, res) => {
           changeTodayPct: quote.changePct,
           indicators,
           relativeToIndex: await relativeToIndex(secid, indicators, market),
-          // The index review covers ~45 instruments; keep the prompt compact.
+          // The index review covers ~45 instruments; keep the prompt compact and use market news only.
           recentCloses: daily.slice(scope === 'imoex' ? -10 : -20).map((c) => c.close),
+          news: scope === 'watchlist' ? headlines(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4)) : undefined,
         };
       }),
     );
@@ -79,7 +95,7 @@ reviewRouter.post('/', async (req, res) => {
   }
   if (inputs.length === 0) throw new HttpError(422, 'Недостаточно истории торгов для обзора');
 
-  const result = await reviewInstruments(scope, inputs, market);
+  const result = await reviewInstruments(scope, inputs, market, headlines(marketNews));
   const snapshot = inputs.map(({ secid, name, price, changeTodayPct, indicators }) => ({
     secid,
     name,
@@ -88,8 +104,8 @@ reviewRouter.post('/', async (req, res) => {
     indicators,
   }));
   const { rows } = await pool.query<Row>(
-    'INSERT INTO reviews (model, scope, secids, result, snapshot) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-    [config.AI_MODEL, scope, inputs.map((i) => i.secid), result, JSON.stringify(snapshot)],
+    'INSERT INTO reviews (model, scope, secids, result, snapshot, news) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+    [config.AI_MODEL, scope, inputs.map((i) => i.secid), result, JSON.stringify(snapshot), JSON.stringify(marketNews)],
   );
   res.json(toDto(rows[0]));
 });

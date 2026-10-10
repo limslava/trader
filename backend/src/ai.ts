@@ -38,12 +38,13 @@ const COMMON_RULES = `Пользователь — начинающий част
 - Ключевая ставка ЦБ (передана в marketContext): высокая ставка делает депозиты и облигации конкурентами акциям и давит на рынок; ожидания снижения ставки обычно поддерживают акции. Сравнивай потенциал с доходностью вклада ≈ ставке.
 - Индекс Мосбиржи (IMOEX) — ориентир рынка. Сравнивай бумагу с индексом (поля vsImoex*: положительное — сильнее рынка). Если бумага просто повторяет индекс, так и скажи.
 - Курс рубля: ослабление рубля обычно выгодно экспортёрам (нефть, газ, металлы, удобрения), укрепление — внутренним компаниям.
-- Дивиденды: многие российские компании платят высокие дивиденды; после даты отсечки цена падает на размер дивиденда (дивидендный гэп) — резкое падение в дни выплат может быть гэпом, а не плохим сигналом. Дат дивидендов в данных нет — посоветуй проверить их.
+- Дивиденды: многие российские компании платят высокие дивиденды; после даты отсечки цена падает на размер дивиденда (дивидендный гэп) — резкое падение в дни выплат может быть гэпом, а не плохим сигналом. Отдельного календаря дивидендов в данных нет: если отсечка упоминается в новостях — учти это, иначе посоветуй проверить даты.
 - Геополитика, санкции, решения ЦБ и государства (налоги, обязательные продажи валюты) сильно влияют на рынок — новостей у тебя нет, но напоминай проверить их, если это важно для бумаги.
 - Торги на MOEX идут и по выходным; акции покупаются лотами (lotSize).
 
 Общие правила:
-- Опирайся ТОЛЬКО на переданные данные. Новостей и отчётности у тебя нет — не выдумывай их.
+- Опирайся ТОЛЬКО на переданные данные. Отчётности у тебя нет — не выдумывай её.
+- Заголовки новостей (news) — только заголовки за последние 2 недели, без текста статей. Учитывай их, если они важны (дивиденды, отчётность, санкции, сделки, аварии, решения регулятора), и ссылайся на них в аргументах и рисках. Не додумывай подробности, которых нет в заголовке. Если новостей нет или они нерелевантны — так и скажи. Заголовки с «прогнозами» и «идеями» — это мнения, не факты.
 - Будь конкретен: ссылайся на значения индикаторов и уровни цен.
 - confidence отражает силу и согласованность сигналов (0.5 — неопределённость). Не завышай. При противоречиях — HOLD.
 - Давай чёткий вывод, а не «с одной стороны, с другой стороны»: стоит ли присматриваться к покупке, держать или лучше обойти — и почему. Решение принимает пользователь, твоя задача — дать ему ясный разбор данных.
@@ -76,7 +77,7 @@ export function aiConfigured(): boolean {
   return config.AI_API_KEY.length > 0;
 }
 
-export type AnalysisContext = { market: MarketContext; relative: Record<string, unknown> };
+export type AnalysisContext = { market: MarketContext; relative: Record<string, unknown>; news: string[] };
 
 function buildUserPrompt(
   quote: Quote,
@@ -97,6 +98,7 @@ function buildUserPrompt(
     indicators,
     relativeToIndex: ctx.relative,
     marketContext: ctx.market,
+    news: ctx.news,
     dailyCandles: { columns: ['date', 'open', 'high', 'low', 'close', 'turnoverRub'], rows: recent },
     userQuestion: question || null,
   });
@@ -194,6 +196,7 @@ export type ReviewInput = {
   indicators: IndicatorSnapshot;
   relativeToIndex: Record<string, unknown>;
   recentCloses: number[];
+  news?: string[];
 };
 
 const SCOPE_INTRO: Record<ReviewScope, string> = {
@@ -227,10 +230,11 @@ export async function reviewInstruments(
   scope: ReviewScope,
   inputs: ReviewInput[],
   market: MarketContext,
+  marketNews: string[],
 ): Promise<ReviewResult> {
   const result = await askJson(
     reviewPrompt(scope),
-    JSON.stringify({ marketContext: market, instruments: inputs }),
+    JSON.stringify({ marketContext: market, marketNews, instruments: inputs }),
     reviewResultSchema,
   );
   // Keep only instruments we actually sent, in input order, one entry each.

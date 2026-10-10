@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { api } from '../api';
+import { NewsCard } from '../components/NewsList';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
 import { Card, ErrorText, Spinner } from '../components/ui';
@@ -70,6 +71,8 @@ export function Market() {
       </Card>
 
       <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />
+
+      <NewsCard title="Новости рынка" />
 
       <Card title="Компании индекса" actions={members.isLoading ? <Spinner className="text-muted" /> : null}>
         <p className="mb-3 text-sm text-muted">

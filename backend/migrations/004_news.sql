@@ -1,0 +1,2 @@
+ALTER TABLE analyses ADD COLUMN news jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE reviews ADD COLUMN news jsonb NOT NULL DEFAULT '[]';

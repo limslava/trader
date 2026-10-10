@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getMarketContext } from '../context.js';
+import { getNewsSafe, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { CANDLE_INTERVALS, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
 
 export const marketRouter = Router();
@@ -41,6 +42,15 @@ marketRouter.get('/imoex', async (_req, res) => {
   const members = await getIndexComposition();
   const quotes = new Map((await getQuotes(members.map((m) => m.secid))).map((q) => [q.secid, q]));
   res.json(members.map((m) => ({ ...m, quote: quotes.get(m.secid) ?? null })));
+});
+
+marketRouter.get('/news', async (_req, res) => {
+  res.json(await getNewsSafe(MARKET_NEWS_QUERY, 7, 15));
+});
+
+marketRouter.get('/news/:secid', async (req, res) => {
+  const quote = await getQuote(secidSchema.parse(req.params.secid));
+  res.json(await getNewsSafe(newsQueryFor(quote.secid, quote.name), 14, 12));
 });
 
 export { secidSchema };

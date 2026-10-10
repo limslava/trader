@@ -6,6 +6,7 @@ import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
+import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
 import { daysAgo, getCandles, getQuote } from '../moex.js';
 import { secidSchema } from './market.js';
 
@@ -23,6 +24,7 @@ type Row = {
   question: string | null;
   result: unknown;
   indicators: unknown;
+  news: unknown;
 };
 
 const toDto = (r: Row) => ({
@@ -37,6 +39,7 @@ const toDto = (r: Row) => ({
   question: r.question,
   result: r.result,
   indicators: r.indicators,
+  news: r.news,
 });
 
 analysisRouter.get('/status', (_req, res) => {
@@ -80,13 +83,13 @@ analysisRouter.post('/:secid', async (req, res) => {
   const [quote, daily] = await Promise.all([getQuote(secid), getCandles(secid, 24, daysAgo(400))]);
   if (daily.length < 30) throw new HttpError(422, 'Слишком мало истории торгов для анализа');
   const indicators = computeIndicators(daily);
-  const market = await getMarketContext();
+  const [market, news] = await Promise.all([getMarketContext(), getNewsSafe(newsQueryFor(secid, quote.name), 14, 12)]);
   const relative = await relativeToIndex(secid, indicators, market);
-  const result = await analyze(quote, indicators, daily, { market, relative }, question || undefined);
+  const result = await analyze(quote, indicators, daily, { market, relative, news: headlines(news) }, question || undefined);
 
   const { rows } = await pool.query<Row>(
-    `INSERT INTO analyses (secid, shortname, model, price, signal, confidence, question, result, indicators)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    `INSERT INTO analyses (secid, shortname, model, price, signal, confidence, question, result, indicators, news)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
     [
       secid,
       quote.shortname,
@@ -97,6 +100,7 @@ analysisRouter.post('/:secid', async (req, res) => {
       question || null,
       result,
       indicators,
+      JSON.stringify(news),
     ],
   );
   res.json(toDto(rows[0]));
