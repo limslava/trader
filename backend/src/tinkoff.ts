@@ -228,3 +228,42 @@ export function companyForPrompt(data: CompanyData | null) {
     recentDividends: data.dividends.recent.map(div),
   };
 }
+
+type LiveQuote = { price: number | null; prevPrice: number | null; changePct: number; updateTime: string | null };
+
+const lastPriceCache = new TtlCache<Map<string, { price: number; time: string }>>(10_000);
+
+/**
+ * Replaces MOEX's delayed prices with T-Invest real-time last prices when a token is configured.
+ * Change is recomputed against MOEX's previous close. Any failure leaves the MOEX data untouched.
+ */
+export async function withLivePrices<T extends LiveQuote & { secid: string }>(quotes: T[]): Promise<T[]> {
+  if (!tinkoffConfigured() || quotes.length === 0) return quotes;
+  try {
+    const instruments = await Promise.all(quotes.map((qt) => getInstrument(qt.secid).catch(() => null)));
+    const uids = instruments.flatMap((i) => (i ? [i.uid] : []));
+    const prices = await lastPriceCache.get([...uids].sort().join(','), async () => {
+      const { lastPrices = [] } = await call<{ lastPrices?: { instrumentUid: string; price?: Quotation; time?: string }[] }>(
+        'MarketDataService/GetLastPrices',
+        { instrumentId: uids },
+      );
+      return new Map(
+        lastPrices.flatMap((p) => {
+          const price = q(p.price);
+          return price ? [[p.instrumentUid, { price, time: p.time ?? '' }] as const] : [];
+        }),
+      );
+    });
+    return quotes.map((qt, i) => {
+      const live = instruments[i] && prices.get(instruments[i].uid);
+      if (!live) return qt;
+      const changePct = qt.prevPrice ? Number((((live.price - qt.prevPrice) / qt.prevPrice) * 100).toFixed(2)) : qt.changePct;
+      // T-Invest times are UTC; show Moscow time like MOEX does.
+      const msk = live.time ? new Date(Date.parse(live.time) + 3 * 3600_000).toISOString().slice(11, 19) : qt.updateTime;
+      return { ...qt, price: live.price, changePct, updateTime: msk };
+    });
+  } catch (err) {
+    console.warn('Live prices unavailable:', err instanceof Error ? err.message : err);
+    return quotes;
+  }
+}

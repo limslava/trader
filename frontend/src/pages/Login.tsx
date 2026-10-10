@@ -1,6 +1,7 @@
+import { ArrowRight } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { api } from '../api';
-import { Button, ErrorText } from '../components/ui';
+import { Button, ErrorText, Spinner } from '../components/ui';
 
 export function Login({ onSuccess }: { onSuccess: () => void }) {
   const [password, setPassword] = useState('');
@@ -22,25 +23,30 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-xl border border-line bg-panel p-6">
-        <div className="flex items-center gap-2 text-lg font-semibold">
-          <img src="/favicon.svg" alt="" className="size-7" />
-          Trader
+    <div className="relative grid min-h-dvh place-items-center overflow-hidden px-4">
+      <div className="pointer-events-none absolute top-1/3 left-1/2 size-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-br from-accent/25 to-accent-2/20 blur-3xl" />
+      <form onSubmit={submit} className="relative w-full max-w-sm animate-rise">
+        <img src="/favicon.svg" alt="" className="mb-8 size-14" />
+        <h1 className="text-4xl font-semibold tracking-tight">Trader</h1>
+        <p className="mt-2 text-[17px] text-muted">AI-аналитика Московской биржи</p>
+        <div className="mt-10 flex h-14 items-center gap-2 rounded-full border border-line bg-surface p-1.5 pl-5 shadow-soft focus-within:border-ink/30">
+          <input
+            type="password"
+            autoFocus
+            autoComplete="current-password"
+            aria-label="Пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Пароль"
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted"
+          />
+          <Button type="submit" variant="primary" className="size-11 shrink-0 px-0" disabled={busy || !password} aria-label="Войти">
+            {busy ? <Spinner /> : <ArrowRight className="size-5" />}
+          </Button>
         </div>
-        <input
-          type="password"
-          autoFocus
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Пароль"
-          className="w-full rounded-xl border border-line bg-panel px-3 py-2 outline-none focus:border-accent"
-        />
-        <ErrorText error={error} />
-        <Button type="submit" variant="primary" className="w-full py-2" disabled={busy || !password}>
-          Войти
-        </Button>
+        <div className="mt-3 px-2">
+          <ErrorText error={error} />
+        </div>
       </form>
     </div>
   );

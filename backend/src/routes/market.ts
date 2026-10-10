@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getMarketContext } from '../context.js';
 import { getNewsSafe, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { FUNDAMENTAL_FIELDS, getCompanyData, isSandbox, tinkoffConfigured } from '../tinkoff.js';
-import { CANDLE_INTERVALS, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
+import { CANDLE_INTERVALS, daysAgo, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
 
 export const marketRouter = Router();
 
@@ -59,6 +59,27 @@ marketRouter.get('/company/:secid', async (req, res) => {
   const secid = secidSchema.parse(req.params.secid);
   if (!tinkoffConfigured()) return void res.json({ configured: false });
   res.json({ configured: true, sandbox: isSandbox, labels: FUNDAMENTAL_FIELDS, data: await getCompanyData(secid) });
+});
+
+/** Last ~30 daily closes per instrument for sparklines; failures yield an empty series, not an error. */
+marketRouter.get('/sparklines', async (req, res) => {
+  const secids = z
+    .string()
+    .transform((s) => [...new Set(s.split(',').filter(Boolean))])
+    .pipe(z.array(secidSchema).max(60))
+    .parse(req.query.secids ?? '');
+  const from = daysAgo(45);
+  const out: Record<string, number[]> = {};
+  for (let i = 0; i < secids.length; i += 6) {
+    await Promise.all(
+      secids.slice(i, i + 6).map(async (secid) => {
+        out[secid] = await getCandles(secid, 24, from)
+          .then((c) => c.slice(-30).map((x) => x.close))
+          .catch(() => []);
+      }),
+    );
+  }
+  res.json(out);
 });
 
 export { secidSchema };

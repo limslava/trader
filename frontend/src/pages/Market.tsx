@@ -1,136 +1,167 @@
-import { Star } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { ArrowDownUp, Star } from 'lucide-react';
+import { useState } from 'react';
 import { Link } from 'react-router';
 import { api } from '../api';
-import { NewsCard } from '../components/NewsList';
+import { NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
-import { Card, ErrorText, Spinner } from '../components/ui';
-import { changeColor, pct, price } from '../format';
+import { Sparkline, useSparklines } from '../components/Sparkline';
+import { Delta, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface } from '../components/ui';
+import { money, price } from '../format';
 
-function Stat({ label, value, sub, hint }: { label: string; value: ReactNode; sub?: ReactNode; hint: string }) {
-  return (
-    <div className="rounded-2xl border border-line/70 bg-panel p-5 shadow-card">
-      <div className="text-sm font-medium text-muted">{label}</div>
-      <div className="mt-1 text-3xl font-semibold tracking-tight">{value}</div>
-      {sub && <div className="mt-1.5 text-sm font-medium">{sub}</div>}
-      <p className="mt-3 text-[13px] leading-relaxed text-muted">{hint}</p>
-    </div>
-  );
-}
+type Sort = 'weight' | 'gainers' | 'losers';
 
-export function Market() {
+function Companies() {
   const qc = useQueryClient();
-  const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
+  const [sort, setSort] = useState<Sort>('weight');
   const members = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
   const watchlist = useQuery({ queryKey: ['watchlist'], queryFn: api.watchlist });
-  const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
-
+  const spark = useSparklines(members.data?.map((m) => m.secid) ?? []);
   const watched = new Set(watchlist.data?.map((w) => w.secid));
   const toggle = useMutation({
     mutationFn: (secid: string) => (watched.has(secid) ? api.unwatch(secid) : api.watch(secid)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
   });
 
-  const imoex = ctx.data?.imoex;
-  const keyRate = ctx.data?.keyRate;
-  const usd = ctx.data?.usdRub;
+  const rows = [...(members.data ?? [])].sort((a, b) =>
+    sort === 'weight' ? b.weight - a.weight : ((b.quote?.changePct ?? 0) - (a.quote?.changePct ?? 0)) * (sort === 'gainers' ? 1 : -1),
+  );
 
   return (
-    <div className="space-y-4">
-      <ErrorText error={ctx.error} />
-      <div className="grid gap-3 md:grid-cols-3">
-        <Stat
-          label="Индекс Мосбиржи"
-          value={imoex ? price(imoex.value) : '—'}
-          sub={
-            imoex && (
-              <span className="flex flex-wrap gap-x-3">
-                <span className={changeColor(imoex.change1wPct)}>неделя {pct(imoex.change1wPct)}</span>
-                <span className={changeColor(imoex.change1mPct)}>месяц {pct(imoex.change1mPct)}</span>
-                <span className={changeColor(imoex.change1yPct)}>год {pct(imoex.change1yPct)}</span>
-              </span>
-            )
-          }
-          hint="Средняя «температура» рынка: как в целом меняются цены 44 крупнейших компаний."
-        />
-        <Stat
-          label="Ключевая ставка ЦБ"
-          value={keyRate ? `${price(keyRate.pct)}%` : '—'}
-          hint="Примерно столько дают вклады. Акции должны приносить больше — иначе проще положить деньги на вклад. Снижение ставки обычно помогает акциям расти."
-        />
-        <Stat
-          label="Доллар (курс ЦБ)"
-          value={usd ? `${price(usd.rate)} ₽` : '—'}
-          hint="Слабый рубль выгоден экспортёрам (нефть, газ, металлы, удобрения), сильный — компаниям, работающим внутри страны."
-        />
+    <Surface className="p-5 md:p-7">
+      <SectionHeader
+        title="Крупнейшие компании"
+        subtitle="44 бумаги индекса Мосбиржи — с них обычно начинают"
+        action={
+          <Segmented
+            size="sm"
+            value={sort}
+            onChange={setSort}
+            options={[
+              { value: 'weight', label: 'По весу' },
+              { value: 'gainers', label: 'Рост' },
+              { value: 'losers', label: 'Падение' },
+            ]}
+          />
+        }
+      />
+      <ErrorText error={members.error} />
+      {members.isLoading && <Skeleton className="h-96" />}
+      <div className="-mx-2 overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="text-left text-xs text-muted">
+              <th className="w-10 px-2 pb-3 font-medium" />
+              <th className="px-2 pb-3 font-medium">Компания</th>
+              <th className="px-2 pb-3 font-medium">30 дней</th>
+              <th className="px-2 pb-3 text-right font-medium">Цена</th>
+              <th className="px-2 pb-3 text-right font-medium">Сегодня</th>
+              <th className="px-2 pb-3 text-right font-medium" title="Минимальная сумма покупки">
+                1 лот
+              </th>
+              <th className="px-2 pb-3 text-right font-medium" title="Доля в индексе">
+                <span className="inline-flex items-center gap-1">
+                  Вес <ArrowDownUp className="size-3" aria-hidden />
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((m) => {
+              const q = m.quote;
+              const isWatched = watched.has(m.secid);
+              return (
+                <tr key={m.secid} className="group border-t border-line/70">
+                  <td className="px-2 py-3">
+                    <button
+                      onClick={() => toggle.mutate(m.secid)}
+                      disabled={toggle.isPending || !watchlist.data}
+                      className={`grid size-8 place-items-center rounded-full transition ${isWatched ? 'text-hold' : 'text-muted/50 hover:text-hold'}`}
+                      aria-label={isWatched ? `Убрать ${m.secid} из вотчлиста` : `Добавить ${m.secid} в вотчлист`}
+                      title={isWatched ? 'Убрать из вотчлиста' : 'В вотчлист'}
+                    >
+                      <Star className={`size-4 ${isWatched ? 'fill-current' : ''}`} />
+                    </button>
+                  </td>
+                  <td className="px-2 py-3">
+                    <Link to={`/s/${m.secid}`} className="flex items-center gap-3">
+                      <Monogram secid={m.secid} size="sm" />
+                      <span className="min-w-0">
+                        <span className="block font-semibold group-hover:underline">{m.secid}</span>
+                        <span className="block truncate text-xs text-muted">{m.shortname}</span>
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="px-2 py-3">
+                    <Sparkline data={spark.data?.[m.secid]} width={88} height={28} />
+                  </td>
+                  <td className="px-2 py-3 text-right font-semibold">{price(q?.price, q?.decimals)}</td>
+                  <td className="px-2 py-3 text-right">
+                    <Delta value={q?.changePct} size="sm" />
+                  </td>
+                  <td className="px-2 py-3 text-right text-muted">{q?.price != null ? money(q.price * q.lotSize) : '—'}</td>
+                  <td className="px-2 py-3 text-right text-muted">{price(m.weight, 1)}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </Surface>
+  );
+}
+
+export function Market() {
+  const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
+  const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
+  const imoex = ctx.data?.imoex;
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Рынок</h1>
+        <p className="mt-1 text-muted">Московская биржа сегодня</p>
       </div>
 
-      <Card title="Индекс Мосбиржи (IMOEX)">
-        <PriceChart secid="IMOEX" />
-      </Card>
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <Surface className="p-5 md:p-7">
+          <div className="text-sm font-medium text-muted">Индекс Мосбиржи · IMOEX</div>
+          <div className="mt-1 mb-4 text-5xl font-semibold tracking-[-0.03em]">{imoex ? price(imoex.value) : <Skeleton className="h-12 w-48" />}</div>
+          <PriceChart secid="IMOEX" height="h-[280px] md:h-[320px]" />
+        </Surface>
+        <div className="grid gap-3">
+          {[
+            {
+              label: 'Ключевая ставка ЦБ',
+              value: ctx.data?.keyRate ? `${price(ctx.data.keyRate.pct)}%` : '—',
+              hint: 'Примерно столько дают вклады. Акции должны приносить больше — иначе проще вклад. Снижение ставки обычно помогает акциям.',
+            },
+            {
+              label: 'Доллар, курс ЦБ',
+              value: ctx.data?.usdRub ? `${price(ctx.data.usdRub.rate)} ₽` : '—',
+              hint: 'Слабый рубль выгоден экспортёрам (нефть, газ, металлы), сильный — компаниям внутри страны.',
+            },
+            {
+              label: 'Индекс за год',
+              value: imoex?.change1yPct != null ? <Delta value={imoex.change1yPct} size="lg" /> : '—',
+              hint: `За месяц ${imoex?.change1mPct != null ? `${imoex.change1mPct > 0 ? '+' : ''}${price(imoex.change1mPct)}%` : '—'}, за 3 месяца ${
+                imoex?.change3mPct != null ? `${imoex.change3mPct > 0 ? '+' : ''}${price(imoex.change3mPct)}%` : '—'
+              }.`,
+            },
+          ].map((s) => (
+            <Surface key={s.label} className="p-5">
+              <div className="text-sm font-medium text-muted">{s.label}</div>
+              <div className="mt-1 text-3xl font-semibold tracking-tight">{s.value}</div>
+              <p className="mt-2 text-[13px] leading-relaxed text-muted">{s.hint}</p>
+            </Surface>
+          ))}
+        </div>
+      </div>
 
-      <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />
-
-      <NewsCard title="Новости рынка" />
-
-      <Card title="Компании индекса" actions={members.isLoading ? <Spinner className="text-muted" /> : null}>
-        <p className="mb-3 text-sm text-muted">
-          Крупнейшие и самые ликвидные компании России — с них обычно и начинают. «Вес» — доля компании в индексе.
-          «1 лот» — минимальная сумма для покупки. Звёздочка добавляет бумагу в вотчлист.
-        </p>
-        <ErrorText error={members.error} />
-        {members.data && (
-          <div className="-mx-4 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="text-left text-xs text-muted">
-                  <th className="w-8 px-4 pb-2" />
-                  <th className="px-2 pb-2 font-normal">Компания</th>
-                  <th className="px-4 pb-2 text-right font-normal">Вес</th>
-                  <th className="px-4 pb-2 text-right font-normal">Цена</th>
-                  <th className="px-4 pb-2 text-right font-normal">Сегодня</th>
-                  <th className="px-4 pb-2 text-right font-normal">1 лот</th>
-                </tr>
-              </thead>
-              <tbody>
-                {members.data.map((m) => {
-                  const q = m.quote;
-                  const isWatched = watched.has(m.secid);
-                  return (
-                    <tr key={m.secid} className="border-t border-line hover:bg-panel-2">
-                      <td className="px-4 py-2">
-                        <button
-                          onClick={() => toggle.mutate(m.secid)}
-                          disabled={toggle.isPending || !watchlist.data}
-                          className={`grid size-8 place-items-center rounded-lg ${isWatched ? 'text-hold' : 'text-muted hover:text-hold'}`}
-                          title={isWatched ? 'Убрать из вотчлиста' : 'Добавить в вотчлист'}
-                          aria-label={isWatched ? `Убрать ${m.secid} из вотчлиста` : `Добавить ${m.secid} в вотчлист`}
-                        >
-                          <Star className={`size-4.5 ${isWatched ? 'fill-current' : ''}`} />
-                        </button>
-                      </td>
-                      <td className="px-2 py-2">
-                        <Link to={`/s/${m.secid}`} className="hover:underline">
-                          <span className="font-semibold">{m.secid}</span>
-                          <span className="ml-2 text-muted">{m.shortname}</span>
-                        </Link>
-                      </td>
-                      <td className="px-4 py-2 text-right text-muted">{price(m.weight)}%</td>
-                      <td className="px-4 py-2 text-right">{price(q?.price, q?.decimals)}</td>
-                      <td className={`px-4 py-2 text-right ${changeColor(q?.changePct)}`}>{pct(q?.changePct)}</td>
-                      <td className="px-4 py-2 text-right text-muted">
-                        {q?.price != null ? `${price(q.price * q.lotSize, 0)} ₽` : '—'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+      <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={44} />
+      <Companies />
+      <NewsFeed title="Новости рынка" />
     </div>
   );
 }

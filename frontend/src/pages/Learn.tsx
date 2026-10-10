@@ -1,34 +1,41 @@
 import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { Card } from '../components/ui';
+import { SectionHeader, Surface } from '../components/ui';
 
 function Item({ title, children, open }: { title: string; children: ReactNode; open?: boolean }) {
   return (
-    <details open={open} className="group border-t border-line py-3 first:border-t-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-fg">
+    <details open={open} className="group border-t border-line/70 py-4 first:border-t-0 first:pt-0">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-[17px] font-semibold">
         {title}
-        <ChevronRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
+        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-surface-2">
+          <ChevronRight className="size-4 text-muted transition group-open:rotate-90" aria-hidden />
+        </span>
       </summary>
-      <div className="mt-2 space-y-2 text-sm leading-relaxed text-fg-2">{children}</div>
+      <div className="mt-3 space-y-2.5 text-[15px] leading-relaxed text-ink-2">{children}</div>
     </details>
   );
 }
 
 const Term = ({ name, children }: { name: string; children: ReactNode }) => (
   <p>
-    <span className="font-semibold text-fg">{name}</span> — {children}
+    <span className="font-semibold text-ink">{name}</span> — {children}
   </p>
 );
 
 export function Learn() {
   return (
-    <div className="space-y-4">
-      <Card title="Как пользоваться приложением">
-        <ol className="list-decimal space-y-2 pl-5 text-sm leading-relaxed text-fg-2">
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Обучение</h1>
+        <p className="mt-2 text-[17px] text-muted">Всё, что нужно начинающему инвестору, — коротко и без воды.</p>
+      </div>
+      <Surface className="p-6 md:p-8">
+        <SectionHeader title="Как пользоваться приложением" />
+        <ol className="list-decimal space-y-3 pl-5 text-[15px] leading-relaxed text-ink-2 marker:font-semibold marker:text-muted">
           <li>
             Откройте{' '}
-            <Link to="/market" className="text-accent hover:underline">
+            <Link to="/market" className="font-semibold text-ink underline">
               «Рынок»
             </Link>{' '}
             и нажмите «Сделать обзор»: AI объяснит, что сейчас происходит на рынке и какие из 44 крупнейших компаний
@@ -42,7 +49,7 @@ export function Learn() {
           <li>Перед покупкой загляните в блоки «Отчётность и дивиденды» и «Новости компании».</li>
           <li>
             Потренируйтесь в{' '}
-            <Link to="/portfolio" className="text-accent hover:underline">
+            <Link to="/portfolio" className="font-semibold text-ink underline">
               «Портфеле»
             </Link>
             : это песочница Т-Инвестиций с виртуальными деньгами. Купите и продайте пару бумаг, посмотрите, как
@@ -50,10 +57,11 @@ export function Learn() {
           </li>
           <li>Решение принимаете вы. Не торопитесь: рынок работает каждый день, хороших моментов будет много.</li>
         </ol>
-      </Card>
+      </Surface>
 
-      <Card title="Как читать сигналы AI">
-        <div className="space-y-2 text-sm leading-relaxed text-fg-2">
+      <Surface className="p-6 md:p-8">
+        <SectionHeader title="Как читать сигналы AI" />
+        <div className="space-y-3 text-[15px] leading-relaxed text-ink-2">
           <Term name="Покупать">
             по графику и индикаторам больше аргументов за рост. Можно присмотреться к покупке — но всё равно проверьте
             новости и не вкладывайте всю сумму сразу.
@@ -68,15 +76,16 @@ export function Learn() {
           <Term name="Уверенность">
             насколько согласны между собой разные признаки. 50–60% — слабый сигнал, 70%+ — заметный. 100% не бывает.
           </Term>
-          <p className="rounded-lg border border-hold/30 bg-hold/10 p-3 text-hold">
+          <p className="rounded-2xl bg-hold/10 p-4 text-ink">
             AI видит цены, обороты, ставку ЦБ, курс рубля, ключевые показатели отчётности, дивиденды и заголовки
             новостей за 2 недели — но не тексты статей и не полные отчёты. Это помощь в анализе, а не гарантия:
             перед покупкой откройте пару важных новостей.
           </p>
         </div>
-      </Card>
+      </Surface>
 
-      <Card title="Основы">
+      <Surface className="p-6 md:p-8">
+        <SectionHeader title="Основы" />
         <Item title="Что можно купить на Мосбирже" open>
           <Term name="Акция">доля в компании. Растёт, если компания и рынок растут; может приносить дивиденды.</Term>
           <Term name="Облигация">
@@ -160,10 +169,11 @@ export function Learn() {
             <li>Не продавать в панике на падении и не покупать на эйфории после резкого роста.</li>
           </ul>
         </Item>
-      </Card>
+      </Surface>
 
-      <Card title="Словарь индикаторов">
-        <div className="space-y-2 text-sm leading-relaxed text-fg-2">
+      <Surface className="p-6 md:p-8">
+        <SectionHeader title="Словарь индикаторов" />
+        <div className="space-y-3 text-[15px] leading-relaxed text-ink-2">
           <Term name="SMA 20/50/200 (скользящая средняя)">
             средняя цена за 20/50/200 дней. Цена выше средней — тренд вверх; ниже 200-дневной — долгосрочно бумага
             слабая.
@@ -185,7 +195,7 @@ export function Learn() {
           </Term>
           <Term name="Оборот">сколько денег за день проходит в сделках. Мало оборота — сложнее купить и продать по хорошей цене.</Term>
         </div>
-      </Card>
+      </Surface>
     </div>
   );
 }

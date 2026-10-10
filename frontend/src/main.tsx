@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router';
+import { BrowserRouter, Route, Routes } from 'react-router';
 import { api, ApiError } from './api';
-import { Layout, ListPage } from './components/Layout';
+import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 import './index.css';
-import { Dashboard } from './pages/Dashboard';
 import { History } from './pages/History';
+import { Home } from './pages/Home';
 import { Instrument } from './pages/Instrument';
 import { Learn } from './pages/Learn';
 import { Market } from './pages/Market';
@@ -32,22 +32,6 @@ queryClient.getQueryCache().subscribe((event) => {
   }
 });
 
-/** Regular (non-terminal) pages: centered column with padding. */
-function Page() {
-  return (
-    <div className="mx-auto max-w-6xl p-4 lg:p-6">
-      <Outlet />
-    </div>
-  );
-}
-
-/** The terminal opens on the first watchlist instrument, or SBER for an empty watchlist. */
-function Home() {
-  const { data, isLoading } = useQuery({ queryKey: ['watchlist'], queryFn: api.watchlist });
-  if (isLoading) return null;
-  return <Navigate to={`/s/${data?.[0]?.secid ?? 'SBER'}`} replace />;
-}
-
 function App() {
   const qc = useQueryClient();
   const me = useQuery({
@@ -58,7 +42,7 @@ function App() {
 
   if (me.isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-muted">
+      <div className="flex min-h-dvh items-center justify-center text-muted">
         <Spinner />
       </div>
     );
@@ -70,15 +54,11 @@ function App() {
       <Route element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="s/:secid" element={<Instrument />} />
-        <Route path="list" element={<ListPage />} />
-        <Route element={<Page />}>
-          <Route path="watchlist" element={<Dashboard />} />
-          <Route path="market" element={<Market />} />
-          <Route path="portfolio" element={<Portfolio />} />
-          <Route path="learn" element={<Learn />} />
-          <Route path="history" element={<History />} />
-          <Route path="*" element={<Market />} />
-        </Route>
+        <Route path="market" element={<Market />} />
+        <Route path="portfolio" element={<Portfolio />} />
+        <Route path="history" element={<History />} />
+        <Route path="learn" element={<Learn />} />
+        <Route path="*" element={<Home />} />
       </Route>
     </Routes>
   );

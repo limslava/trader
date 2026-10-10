@@ -1,46 +1,46 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CandlestickChart, GraduationCap, History, LineChart, List, LogOut, Moon, Sun, Wallet } from 'lucide-react';
-import { NavLink, Outlet, useMatch } from 'react-router';
+import { BookOpen, History, House, LineChart, LogOut, Moon, Search, Sun, Wallet } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import { api } from '../api';
 import { pct, price } from '../format';
 import { useTheme } from '../theme';
-import { SearchBox } from './SearchBox';
-import { Sidebar } from './Sidebar';
+import { CommandPalette } from './CommandPalette';
 
 const NAV = [
-  { to: '/', label: 'Терминал', Icon: CandlestickChart, end: true, terminal: true },
+  { to: '/', label: 'Обзор', Icon: House, end: true },
   { to: '/market', label: 'Рынок', Icon: LineChart, end: false },
   { to: '/portfolio', label: 'Портфель', Icon: Wallet, end: false },
   { to: '/history', label: 'История', Icon: History, end: false },
-  { to: '/learn', label: 'Обучение', Icon: GraduationCap, end: false },
+  { to: '/learn', label: 'Обучение', Icon: BookOpen, end: false },
 ];
 
-// Mobile has no room for the sidebar, so the instrument list becomes its own tab.
-const MOBILE_NAV = [
-  { to: '/list', label: 'Бумаги', Icon: List, end: false },
-  ...NAV.filter((n) => !n.terminal),
-];
-
-/** Compact market strip in the top bar: index, key rate, ruble. */
 function MarketStrip() {
   const { data } = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
   if (!data) return null;
-  const items = [
-    data.imoex && { label: 'IMOEX', value: price(data.imoex.value), change: data.imoex.change1wPct, hint: 'за неделю' },
-    data.keyRate && { label: 'Ставка ЦБ', value: `${price(data.keyRate.pct)}%` },
-    data.usdRub && { label: 'USD', value: `${price(data.usdRub.rate)} ₽` },
-  ].filter(Boolean) as { label: string; value: string; change?: number | null; hint?: string }[];
   return (
-    <div className="hidden items-center gap-4 text-xs xl:flex">
-      {items.map((i) => (
-        <div key={i.label} className="flex items-baseline gap-1.5 whitespace-nowrap" title={i.hint}>
-          <span className="text-muted">{i.label}</span>
-          <span className="font-semibold">{i.value}</span>
-          {i.change != null && (
-            <span className={i.change > 0 ? 'text-up' : i.change < 0 ? 'text-down' : 'text-muted'}>{pct(i.change)}</span>
-          )}
+    <div className="hidden items-center gap-6 text-sm lg:flex">
+      {data.imoex && (
+        <div className="flex items-baseline gap-2" title="Индекс Мосбиржи, изменение за неделю">
+          <span className="text-muted">IMOEX</span>
+          <span className="font-semibold">{price(data.imoex.value)}</span>
+          <span className={`text-xs font-semibold ${(data.imoex.change1wPct ?? 0) >= 0 ? 'text-up' : 'text-down'}`}>
+            {pct(data.imoex.change1wPct)}
+          </span>
         </div>
-      ))}
+      )}
+      {data.keyRate && (
+        <div className="flex items-baseline gap-2">
+          <span className="text-muted">Ставка ЦБ</span>
+          <span className="font-semibold">{price(data.keyRate.pct)}%</span>
+        </div>
+      )}
+      {data.usdRub && (
+        <div className="flex items-baseline gap-2">
+          <span className="text-muted">USD</span>
+          <span className="font-semibold">{price(data.usdRub.rate)} ₽</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -48,92 +48,119 @@ function MarketStrip() {
 export function Layout() {
   const qc = useQueryClient();
   const { theme, toggle } = useTheme();
-  const onInstrument = useMatch('/s/:secid') !== null;
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const typing = e.target instanceof HTMLElement && /^(INPUT|TEXTAREA)$/.test(e.target.tagName);
+      if ((e.key === 'k' && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const logout = async () => {
     await api.logout();
     qc.clear();
     window.location.href = '/';
   };
 
-  const iconBtn = 'grid size-9 place-items-center rounded-lg text-muted transition hover:bg-panel-2 hover:text-fg';
+  const railBtn = 'grid size-11 place-items-center rounded-2xl text-muted transition hover:bg-surface-2 hover:text-ink';
+  const isMac = navigator.platform.toLowerCase().includes('mac');
 
   return (
-    <div className="flex h-dvh flex-col">
-      <header className="z-20 shrink-0 border-b border-line bg-panel">
-        <div className="flex h-14 items-center gap-3 px-3 lg:px-4">
-          <NavLink to="/" className="flex shrink-0 items-center gap-2 font-bold tracking-tight">
-            <img src="/favicon.svg" alt="" className="size-7" />
-            <span className="hidden sm:inline">Trader</span>
-          </NavLink>
-          <nav className="hidden gap-0.5 md:flex" aria-label="Разделы">
-            {NAV.map(({ to, label, Icon, end, terminal }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium transition ${
-                    isActive || (terminal && onInstrument) ? 'bg-accent/10 text-accent' : 'text-muted hover:bg-panel-2 hover:text-fg'
-                  }`
-                }
-              >
-                <Icon className="size-4" aria-hidden />
-                {label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="mx-auto w-full max-w-sm min-w-0 flex-1 md:flex-none lg:w-72">
-            <SearchBox />
-          </div>
-          <MarketStrip />
-          <div className="flex items-center">
-            <button onClick={toggle} className={iconBtn} aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
-              {theme === 'dark' ? <Sun className="size-4.5" /> : <Moon className="size-4.5" />}
-            </button>
-            <button onClick={logout} className={iconBtn} aria-label="Выйти" title="Выйти">
-              <LogOut className="size-4.5" />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-64 shrink-0 border-r border-line bg-panel md:block xl:w-72" aria-label="Список бумаг">
-          <Sidebar />
-        </aside>
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
-
-      <nav className="z-20 shrink-0 border-t border-line bg-panel pb-[env(safe-area-inset-bottom)] md:hidden" aria-label="Разделы">
-        <div className="grid grid-cols-5">
-          {MOBILE_NAV.map(({ to, label, Icon, end }) => (
+    <div className="min-h-dvh md:pl-[84px]">
+      {/* Desktop: slim icon rail */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[84px] flex-col items-center border-r border-line/70 bg-surface py-5 md:flex">
+        <NavLink to="/" aria-label="Trader — обзор">
+          <img src="/favicon.svg" alt="" className="size-10" />
+        </NavLink>
+        <nav className="mt-8 flex flex-col gap-2" aria-label="Разделы">
+          {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
               to={to}
               end={end}
               className={({ isActive }) =>
-                `flex min-h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-medium ${
-                  isActive || (to === '/list' && onInstrument) ? 'text-accent' : 'text-muted'
+                `group flex w-16 flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-medium transition ${
+                  isActive ? 'bg-primary text-on-primary' : 'text-muted hover:bg-surface-2 hover:text-ink'
                 }`
               }
             >
-              <Icon className="size-5" aria-hidden />
+              <Icon className="size-5" strokeWidth={1.75} aria-hidden />
               {label}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="mt-auto flex flex-col items-center gap-1">
+          <button onClick={toggle} className={railBtn} aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+            {theme === 'dark' ? <Sun className="size-5" strokeWidth={1.75} /> : <Moon className="size-5" strokeWidth={1.75} />}
+          </button>
+          <button onClick={logout} className={railBtn} aria-label="Выйти" title="Выйти">
+            <LogOut className="size-5" strokeWidth={1.75} />
+          </button>
+        </div>
+      </aside>
+
+      <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-4 px-4 md:px-8">
+          <NavLink to="/" className="md:hidden" aria-label="Trader — обзор">
+            <img src="/favicon.svg" alt="" className="size-9" />
+          </NavLink>
+          <button
+            onClick={() => setPaletteOpen(true)}
+            className="flex h-11 w-full max-w-md items-center gap-3 rounded-full border border-line/70 bg-surface px-4 text-sm text-muted shadow-soft transition hover:text-ink"
+          >
+            <Search className="size-4" aria-hidden />
+            <span className="flex-1 text-left">Найти акцию или фонд</span>
+            <kbd className="hidden rounded-md bg-surface-2 px-1.5 py-0.5 text-xs sm:inline">{isMac ? '⌘K' : 'Ctrl K'}</kbd>
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <MarketStrip />
+            <button onClick={toggle} className={`${railBtn} md:hidden`} aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
+              {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main key={pathname} className="mx-auto max-w-[1400px] animate-rise px-4 pt-6 pb-28 md:px-8 md:pb-12">
+        <Outlet />
+      </main>
+
+      {/* Mobile: bottom tab bar */}
+      <nav
+        className="fixed inset-x-3 bottom-3 z-30 rounded-3xl border border-line/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] shadow-2xl backdrop-blur-xl md:hidden"
+        aria-label="Разделы"
+      >
+        <div className="grid grid-cols-5">
+          {NAV.map(({ to, label, Icon, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              className={({ isActive }) =>
+                `flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium ${isActive ? 'text-ink' : 'text-muted'}`
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <span className={`grid h-7 w-12 place-items-center rounded-full ${isActive ? 'bg-primary text-on-primary' : ''}`}>
+                    <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                  </span>
+                  {label}
+                </>
+              )}
             </NavLink>
           ))}
         </div>
       </nav>
-    </div>
-  );
-}
 
-/** Mobile/tablet page with the instrument list (the sidebar is hidden below lg). */
-export function ListPage() {
-  return (
-    <div className="h-full bg-panel">
-      <Sidebar />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

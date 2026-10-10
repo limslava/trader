@@ -16,7 +16,8 @@ export function money(v: number | null | undefined): string {
   if (a >= 1e12) return `${nf(2).format(v / 1e12)} трлн ₽`;
   if (a >= 1e9) return `${nf(1).format(v / 1e9)} млрд ₽`;
   if (a >= 1e6) return `${nf(1).format(v / 1e6)} млн ₽`;
-  return `${nf(0).format(v)} ₽`;
+  // Kopecks matter for small amounts (commissions, sandbox balances).
+  return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: Number.isInteger(v) ? 0 : 2, minimumFractionDigits: Number.isInteger(v) ? 0 : 2 }).format(v)} ₽`;
 }
 
 export function dateTime(iso: string): string {

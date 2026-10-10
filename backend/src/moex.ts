@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { HttpError, TtlCache } from './http.js';
+import { withLivePrices } from './tinkoff.js';
 
 // Shares and ETFs (БПИФ) on MOEX all trade on the main T+ board.
 const BOARD_PATH = '/engines/stock/markets/shares/boards/TQBR/securities';
@@ -81,7 +82,12 @@ export function search(query: string): Promise<SearchResult[]> {
   });
 }
 
-export function getQuotes(secids: string[]): Promise<Quote[]> {
+export async function getQuotes(secids: string[]): Promise<Quote[]> {
+  return withLivePrices(await getDelayedQuotes(secids));
+}
+
+/** MOEX ISS quotes (free tier is delayed by ~15 minutes). */
+function getDelayedQuotes(secids: string[]): Promise<Quote[]> {
   if (secids.length === 0) return Promise.resolve([]);
   const key = [...secids].sort().join(',');
   return quoteCache.get(key, async () => {

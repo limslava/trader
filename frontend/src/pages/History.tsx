@@ -1,31 +1,63 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { api } from '../api';
-import { Card, Empty, ErrorText, SignalBadge, Spinner } from '../components/ui';
-import { dateTime, price } from '../format';
+import { api, type Analysis } from '../api';
+import { Empty, ErrorText, Monogram, SIGNAL_META, Skeleton, Surface } from '../components/ui';
+import { price } from '../format';
+
+function groupByDay(list: Analysis[]) {
+  const groups = new Map<string, Analysis[]>();
+  for (const a of list) {
+    const day = new Date(a.createdAt).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+    groups.set(day, [...(groups.get(day) ?? []), a]);
+  }
+  return [...groups];
+}
 
 export function History() {
   const { data, isLoading, error } = useQuery({ queryKey: ['analyses', 'all'], queryFn: () => api.analyses() });
 
   return (
-    <Card title="История анализов" actions={isLoading ? <Spinner className="text-muted" /> : null}>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">История</h1>
+        <p className="mt-1 text-muted">Все AI-вердикты по бумагам</p>
+      </div>
       <ErrorText error={error} />
-      {data?.length === 0 && <Empty>Анализов пока нет.</Empty>}
-      <ul className="divide-y divide-line">
-        {data?.map((a) => (
-          <li key={a.id}>
-            <Link to={`/s/${a.secid}`} className="flex flex-col gap-1 py-3 hover:bg-panel-2 sm:-mx-4 sm:px-4">
-              <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="w-16 font-semibold">{a.secid}</span>
-                <SignalBadge signal={a.signal} confidence={a.confidence} />
-                <span className="text-muted">@ {price(a.price)}</span>
-                <span className="ml-auto text-xs text-muted">{dateTime(a.createdAt)}</span>
-              </div>
-              <p className="line-clamp-2 text-sm text-fg-2">{a.result.summary}</p>
-            </Link>
-          </li>
+      {isLoading && <Skeleton className="h-64 rounded-[22px]" />}
+      {data?.length === 0 && (
+        <Surface className="p-6">
+          <Empty>Анализов пока нет. Откройте любую компанию и нажмите «Получить вердикт».</Empty>
+        </Surface>
+      )}
+      {data &&
+        groupByDay(data).map(([day, items]) => (
+          <section key={day}>
+            <h2 className="mb-3 text-sm font-semibold text-muted">{day}</h2>
+            <Surface className="divide-y divide-line/70 px-5 md:px-7">
+              {items.map((a) => {
+                const meta = SIGNAL_META[a.signal];
+                return (
+                  <Link key={a.id} to={`/s/${a.secid}`} className="group flex gap-4 py-5">
+                    <Monogram secid={a.secid} />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                        <span className="font-semibold group-hover:underline">{a.shortname}</span>
+                        <span className={`text-sm font-semibold ${meta.tone}`}>
+                          {meta.verdict} · {Math.round(a.confidence * 100)}%
+                        </span>
+                        <span className="ml-auto text-xs text-muted">
+                          {new Date(a.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} · {price(a.price)} ₽
+                        </span>
+                      </span>
+                      {a.question && <span className="mt-1 block text-sm text-muted">«{a.question}»</span>}
+                      <span className="mt-1.5 line-clamp-2 block text-[15px] leading-relaxed text-ink-2">{a.result.summary}</span>
+                    </span>
+                  </Link>
+                );
+              })}
+            </Surface>
+          </section>
         ))}
-      </ul>
-    </Card>
+    </div>
   );
 }

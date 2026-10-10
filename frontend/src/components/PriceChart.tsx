@@ -1,33 +1,49 @@
 import { useQuery } from '@tanstack/react-query';
 import {
+  AreaSeries,
   CandlestickSeries,
   ColorType,
   createChart,
+  CrosshairMode,
   HistogramSeries,
   LineStyle,
   type UTCTimestamp,
 } from 'lightweight-charts';
+import { CandlestickChart, Spline } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { isoDaysAgo } from '../format';
 import { token, useTheme } from '../theme';
-import { ErrorText, Segmented, Spinner } from './ui';
+import { Delta, ErrorText, Segmented } from './ui';
 
 const PERIODS = [
-  { key: '1W', label: '1Н', interval: 10, days: 7 },
-  { key: '1M', label: '1М', interval: 60, days: 31 },
-  { key: '6M', label: '6М', interval: 24, days: 183 },
-  { key: '1Y', label: '1Г', interval: 24, days: 365 },
-  { key: '5Y', label: '5Л', interval: 7, days: 1826 },
+  { key: '1W', label: '1Н', interval: 10, days: 7, caption: 'за неделю' },
+  { key: '1M', label: '1М', interval: 60, days: 31, caption: 'за месяц' },
+  { key: '6M', label: '6М', interval: 24, days: 183, caption: 'за полгода' },
+  { key: '1Y', label: '1Г', interval: 24, days: 365, caption: 'за год' },
+  { key: '5Y', label: '5Л', interval: 7, days: 1826, caption: 'за 5 лет' },
 ] as const;
+
+type PeriodKey = (typeof PERIODS)[number]['key'];
 
 /** ISS times are Moscow local time; plotting them as UTC makes the axis show MSK. */
 const toTs = (t: string) => (Date.parse(`${t.replace(' ', 'T')}Z`) / 1000) as UTCTimestamp;
 
-type Props = { secid: string; levels?: { support: number[]; resistance: number[] }; heightClass?: string };
+const alpha = (hex: string, a: number) =>
+  `${hex}${Math.round(a * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
 
-export function PriceChart({ secid, levels, heightClass = 'h-80 sm:h-96' }: Props) {
-  const [periodKey, setPeriodKey] = useState<(typeof PERIODS)[number]['key']>('6M');
+type Props = {
+  secid: string;
+  levels?: { support: number[]; resistance: number[] };
+  height?: string;
+  defaultPeriod?: PeriodKey;
+};
+
+export function PriceChart({ secid, levels, height = 'h-[360px]', defaultPeriod = '6M' }: Props) {
+  const [periodKey, setPeriodKey] = useState<PeriodKey>(defaultPeriod);
+  const [mode, setMode] = useState<'area' | 'candles'>('area');
   const period = PERIODS.find((p) => p.key === periodKey)!;
   const containerRef = useRef<HTMLDivElement>(null);
   const { theme } = useTheme();
@@ -39,77 +55,116 @@ export function PriceChart({ secid, levels, heightClass = 'h-80 sm:h-96' }: Prop
     refetchInterval: period.interval <= 60 ? 60_000 : false,
   });
 
+  const first = data?.[0]?.open;
+  const last = data?.[data.length - 1]?.close;
+  const change = first && last ? ((last - first) / first) * 100 : null;
+
   useEffect(() => {
     const el = containerRef.current;
-    if (!el || !data) return;
+    if (!el || !data?.length) return;
 
-    // The chart library needs concrete colors, so read the current theme's tokens.
-    const UP = token('--up');
-    const DOWN = token('--down');
-    const line = token('--line');
+    // The chart library needs concrete colours, so read the current theme's tokens.
+    const up = token('--up');
+    const down = token('--down');
+    const trend = (last ?? 0) >= (first ?? 0) ? up : down;
     const chart = createChart(el, {
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
         textColor: token('--muted'),
-        fontFamily: 'Inter, system-ui, sans-serif',
+        fontFamily: 'Onest, system-ui, sans-serif',
+        fontSize: 11,
         attributionLogo: false,
       },
-      grid: { vertLines: { visible: false }, horzLines: { color: line } },
-      rightPriceScale: { borderVisible: false },
+      grid: { vertLines: { visible: false }, horzLines: { visible: false } },
+      rightPriceScale: { borderVisible: false, scaleMargins: { top: 0.12, bottom: 0.12 } },
       timeScale: { borderVisible: false, timeVisible: period.interval < 24, secondsVisible: false },
-      crosshair: { mode: 0 },
+      crosshair: {
+        mode: CrosshairMode.Magnet,
+        vertLine: { color: token('--line'), width: 1, style: LineStyle.Solid, labelBackgroundColor: token('--ink') },
+        horzLine: { color: token('--line'), width: 1, style: LineStyle.Dashed, labelBackgroundColor: token('--ink') },
+      },
+      handleScale: { mouseWheel: false },
     });
 
-    const candles = chart.addSeries(CandlestickSeries, {
-      upColor: UP,
-      downColor: DOWN,
-      borderVisible: false,
-      wickUpColor: UP,
-      wickDownColor: DOWN,
-    });
-    candles.setData(data.map((c) => ({ time: toTs(c.time), open: c.open, high: c.high, low: c.low, close: c.close })));
+    const priceSeries =
+      mode === 'area'
+        ? chart.addSeries(AreaSeries, {
+            lineColor: trend,
+            lineWidth: 2,
+            topColor: alpha(trend, 0.22),
+            bottomColor: alpha(trend, 0),
+            priceLineVisible: false,
+          })
+        : chart.addSeries(CandlestickSeries, {
+            upColor: up,
+            downColor: down,
+            borderVisible: false,
+            wickUpColor: up,
+            wickDownColor: down,
+            priceLineVisible: false,
+          });
+    if (mode === 'area') {
+      priceSeries.setData(data.map((c) => ({ time: toTs(c.time), value: c.close })));
+    } else {
+      priceSeries.setData(data.map((c) => ({ time: toTs(c.time), open: c.open, high: c.high, low: c.low, close: c.close })));
+    }
 
     // Indices have no volume in ISS.
-    if (data.some((c) => c.volume > 0)) {
-      const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
-      chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-      volume.setData(
-        data.map((c) => ({ time: toTs(c.time), value: c.volume, color: c.close >= c.open ? `${UP}55` : `${DOWN}55` })),
-      );
+    if (mode === 'candles' && data.some((c) => c.volume > 0)) {
+      const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol', lastValueVisible: false });
+      chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
+      volume.setData(data.map((c) => ({ time: toTs(c.time), value: c.volume, color: alpha(c.close >= c.open ? up : down, 0.3) })));
     }
 
-    // Only the two levels nearest to the current price on each side; more just clutters the chart.
-    const last = data[data.length - 1]?.close ?? 0;
+    // Two nearest AI levels on each side of the price; more just clutters.
+    const lastClose = data[data.length - 1].close;
+    const narrow = el.clientWidth < 520; // phones: colour alone, labels would cover the line
     const nearest = (list: number[] = [], below: boolean) =>
       list
-        .filter((p) => (below ? p <= last : p >= last))
-        .sort((a, b) => Math.abs(a - last) - Math.abs(b - last))
+        .filter((p) => (below ? p <= lastClose : p >= lastClose))
+        .sort((a, b) => Math.abs(a - lastClose) - Math.abs(b - lastClose))
         .slice(0, 2);
     for (const price of nearest(levels?.support, true)) {
-      candles.createPriceLine({ price, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 1, title: 'поддержка' });
+      priceSeries.createPriceLine({ price, color: alpha(up, 0.7), lineStyle: LineStyle.Dotted, lineWidth: 1, title: narrow ? '' : 'поддержка' });
     }
     for (const price of nearest(levels?.resistance, false)) {
-      candles.createPriceLine({ price, color: DOWN, lineStyle: LineStyle.Dashed, lineWidth: 1, title: 'сопротивление' });
+      priceSeries.createPriceLine({ price, color: alpha(down, 0.7), lineStyle: LineStyle.Dotted, lineWidth: 1, title: narrow ? '' : 'сопротивление' });
     }
 
     chart.timeScale().fitContent();
     return () => chart.remove();
-  }, [data, levels, period.interval, theme]);
+  }, [data, levels, period.interval, theme, mode, first, last]);
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
-        <Segmented
-          size="sm"
-          value={periodKey}
-          onChange={setPeriodKey}
-          options={PERIODS.map((p) => ({ value: p.key, label: p.label }))}
-        />
-        {isLoading && <Spinner className="text-muted" />}
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex h-7 items-center gap-2 text-sm">
+          {change !== null && (
+            <>
+              <Delta value={change} />
+              <span className="text-muted">{period.caption}</span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Segmented
+            size="sm"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { value: 'area', label: <Spline className="size-3.5" aria-label="Линия" /> },
+              { value: 'candles', label: <CandlestickChart className="size-3.5" aria-label="Свечи" /> },
+            ]}
+          />
+          <Segmented size="sm" value={periodKey} onChange={setPeriodKey} options={PERIODS.map((p) => ({ value: p.key, label: p.label }))} />
+        </div>
       </div>
       <ErrorText error={error} />
-      <div ref={containerRef} className={`w-full ${heightClass}`} />
+      <div className={`relative w-full ${height}`}>
+        {isLoading && <div className="skeleton absolute inset-0 rounded-2xl" aria-hidden />}
+        <div ref={containerRef} className="absolute inset-0" />
+      </div>
     </div>
   );
 }
