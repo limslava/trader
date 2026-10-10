@@ -57,8 +57,6 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 
 const searchCache = new TtlCache<SearchResult[]>(60 * 60_000);
 const quoteCache = new TtlCache<Quote[]>(15_000);
-const candleCache = new TtlCache<Candle[]>(60_000);
-
 export function search(query: string): Promise<SearchResult[]> {
   const q = query.trim();
   if (q.length < 2) return Promise.resolve([]);
@@ -123,12 +121,17 @@ export async function getQuote(secid: string): Promise<Quote> {
   return quote;
 }
 
+// Daily+ candles change slowly; intraday ones need fresher data.
+const candleCache = new TtlCache<Candle[]>(60_000);
+const dailyCandleCache = new TtlCache<Candle[]>(10 * 60_000);
+
 /** Fetches candles from `from` (YYYY-MM-DD) to now, following ISS pagination (500 rows per page). */
-export function getCandles(secid: string, interval: CandleInterval, from: string): Promise<Candle[]> {
-  return candleCache.get(`${secid}:${interval}:${from}`, async () => {
+function fetchCandles(basePath: string, secid: string, interval: CandleInterval, from: string): Promise<Candle[]> {
+  const cache = interval === 24 || interval === 7 || interval === 31 ? dailyCandleCache : candleCache;
+  return cache.get(`${basePath}:${secid}:${interval}:${from}`, async () => {
     const out: Candle[] = [];
     for (let start = 0; start < 10_000; ) {
-      const data = await iss(`${BOARD_PATH}/${encodeURIComponent(secid)}/candles.json`, { interval, from, start });
+      const data = await iss(`${basePath}/${encodeURIComponent(secid)}/candles.json`, { interval, from, start });
       const page = rows(data.candles);
       for (const r of page) {
         out.push({
@@ -145,6 +148,33 @@ export function getCandles(secid: string, interval: CandleInterval, from: string
       start += page.length;
     }
     return out;
+  });
+}
+
+export const INDEX_SECID = 'IMOEX';
+
+export function getCandles(secid: string, interval: CandleInterval, from: string): Promise<Candle[]> {
+  return secid === INDEX_SECID
+    ? fetchCandles('/engines/stock/markets/index/securities', secid, interval, from)
+    : fetchCandles(BOARD_PATH, secid, interval, from);
+}
+
+export type IndexMember = { secid: string; shortname: string; weight: number };
+
+const compositionCache = new TtlCache<IndexMember[]>(6 * 60 * 60_000);
+
+/** Current IMOEX constituents with weights (percent). */
+export function getIndexComposition(): Promise<IndexMember[]> {
+  return compositionCache.get(INDEX_SECID, async () => {
+    const out: IndexMember[] = [];
+    for (let start = 0; start < 500; ) {
+      const data = await iss(`/statistics/engines/stock/markets/index/analytics/${INDEX_SECID}.json`, { start, limit: 100 });
+      const page = rows(data.analytics);
+      for (const r of page) out.push({ secid: String(r.secids), shortname: String(r.shortnames), weight: Number(r.weight) });
+      if (page.length < 100) break;
+      start += page.length;
+    }
+    return out.sort((a, b) => b.weight - a.weight);
   });
 }
 

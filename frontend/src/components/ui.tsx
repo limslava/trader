@@ -31,21 +31,33 @@ export function Button({ variant = 'ghost', className = '', ...props }: ButtonPr
   );
 }
 
-const SIGNAL_STYLE: Record<Signal, { label: string; cls: string }> = {
-  BUY: { label: 'Покупать', cls: 'bg-up/15 text-up ring-up/30' },
-  SELL: { label: 'Продавать', cls: 'bg-down/15 text-down ring-down/30' },
-  HOLD: { label: 'Держать', cls: 'bg-hold/15 text-hold ring-hold/30' },
+const SIGNAL_STYLE: Record<Signal, { label: string; cls: string; hint: string }> = {
+  BUY: { label: 'Покупать', cls: 'bg-up/15 text-up ring-up/30', hint: 'Технические данные говорят в пользу роста — можно присмотреться к покупке' },
+  SELL: { label: 'Продавать', cls: 'bg-down/15 text-down ring-down/30', hint: 'Технические данные говорят в пользу снижения — покупать сейчас рискованно' },
+  HOLD: { label: 'Держать', cls: 'bg-hold/15 text-hold ring-hold/30', hint: 'Нет явного перевеса: если бумага есть — держать, если нет — подождать' },
 };
 
 export function SignalBadge({ signal, confidence, size = 'sm' }: { signal: Signal; confidence?: number; size?: 'sm' | 'lg' }) {
   const s = SIGNAL_STYLE[signal];
   return (
     <span
+      title={`${s.hint}${confidence !== undefined ? `. Уверенность AI: ${Math.round(confidence * 100)}%` : ''}`}
       className={`inline-flex items-center gap-1.5 rounded-md font-semibold ring-1 ring-inset ${s.cls} ${size === 'lg' ? 'px-3 py-1 text-base' : 'px-2 py-0.5 text-xs'}`}
     >
       {s.label}
       {confidence !== undefined && <span className="font-normal opacity-80">{Math.round(confidence * 100)}%</span>}
     </span>
+  );
+}
+
+/** Plain-language explanation block for beginners. */
+export function SimpleBox({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <div className="rounded-lg border border-accent/30 bg-accent/10 p-3">
+      <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-accent">Простыми словами</h3>
+      <p className="text-sm leading-relaxed text-slate-100">{text}</p>
+    </div>
   );
 }
 

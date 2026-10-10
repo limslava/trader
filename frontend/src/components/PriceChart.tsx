@@ -62,11 +62,14 @@ export function PriceChart({ secid, levels }: Props) {
     });
     candles.setData(data.map((c) => ({ time: toTs(c.time), open: c.open, high: c.high, low: c.low, close: c.close })));
 
-    const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
-    chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
-    volume.setData(
-      data.map((c) => ({ time: toTs(c.time), value: c.volume, color: c.close >= c.open ? `${UP}55` : `${DOWN}55` })),
-    );
+    // Indices have no volume in ISS.
+    if (data.some((c) => c.volume > 0)) {
+      const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: 'volume' }, priceScaleId: 'vol' });
+      chart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
+      volume.setData(
+        data.map((c) => ({ time: toTs(c.time), value: c.volume, color: c.close >= c.open ? `${UP}55` : `${DOWN}55` })),
+      );
+    }
 
     for (const price of levels?.support ?? []) {
       candles.createPriceLine({ price, color: UP, lineStyle: LineStyle.Dashed, lineWidth: 1, title: 'поддержка' });

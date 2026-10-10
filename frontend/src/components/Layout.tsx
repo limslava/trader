@@ -22,11 +22,17 @@ export function Layout() {
             Trader
           </NavLink>
           <nav className="flex gap-1">
+            <NavLink to="/market" className={link}>
+              Рынок
+            </NavLink>
             <NavLink to="/" end className={link}>
               Вотчлист
             </NavLink>
             <NavLink to="/history" className={link}>
-              История анализов
+              История
+            </NavLink>
+            <NavLink to="/learn" className={link}>
+              Обучение
             </NavLink>
           </nav>
           <div className="order-last w-full sm:order-none sm:ml-auto sm:w-auto sm:flex-1 sm:justify-end sm:flex">

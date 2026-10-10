@@ -1,30 +1,37 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { reviewWatchlist, type ReviewInput } from '../ai.js';
+import { reviewInstruments, type ReviewInput } from '../ai.js';
 import { config } from '../config.js';
+import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
-import { daysAgo, getCandles, getQuotes } from '../moex.js';
+import { daysAgo, getCandles, getIndexComposition, getQuotes } from '../moex.js';
 
 export const reviewRouter = Router();
 
-const MAX_ITEMS = 30;
+const MAX_WATCHLIST_ITEMS = 30;
+const scopeSchema = z.enum(['watchlist', 'imoex']).catch('watchlist');
 
-type Row = { id: number; created_at: Date; model: string; secids: string[]; result: unknown; snapshot: unknown };
+type Row = { id: number; created_at: Date; model: string; scope: string; secids: string[]; result: unknown; snapshot: unknown };
 
 const toDto = (r: Row) => ({
   id: r.id,
   createdAt: r.created_at,
   model: r.model,
+  scope: r.scope,
   secids: r.secids,
   result: r.result,
   snapshot: r.snapshot,
 });
 
 reviewRouter.get('/', async (req, res) => {
+  const scope = scopeSchema.parse(req.query.scope);
   const limit = z.coerce.number().int().min(1).max(50).catch(10).parse(req.query.limit);
-  const { rows } = await pool.query<Row>('SELECT * FROM reviews ORDER BY created_at DESC LIMIT $1', [limit]);
+  const { rows } = await pool.query<Row>('SELECT * FROM reviews WHERE scope = $1 ORDER BY created_at DESC LIMIT $2', [
+    scope,
+    limit,
+  ]);
   res.json(rows.map(toDto));
 });
 
@@ -33,13 +40,19 @@ reviewRouter.delete('/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-reviewRouter.post('/', async (_req, res) => {
-  const { rows: watch } = await pool.query<{ secid: string }>('SELECT secid FROM watchlist ORDER BY added_at');
-  if (watch.length === 0) throw new HttpError(422, 'Вотчлист пуст — добавьте бумаги');
-  if (watch.length > MAX_ITEMS) throw new HttpError(422, `Для обзора максимум ${MAX_ITEMS} бумаг в вотчлисте`);
+async function scopeSecids(scope: 'watchlist' | 'imoex'): Promise<string[]> {
+  if (scope === 'imoex') return (await getIndexComposition()).map((m) => m.secid);
+  const { rows } = await pool.query<{ secid: string }>('SELECT secid FROM watchlist ORDER BY added_at');
+  if (rows.length === 0) throw new HttpError(422, 'Вотчлист пуст — добавьте бумаги');
+  if (rows.length > MAX_WATCHLIST_ITEMS) throw new HttpError(422, `Для обзора максимум ${MAX_WATCHLIST_ITEMS} бумаг в вотчлисте`);
+  return rows.map((r) => r.secid);
+}
 
-  const secids = watch.map((w) => w.secid);
-  const quotes = new Map((await getQuotes(secids)).map((q) => [q.secid, q]));
+reviewRouter.post('/', async (req, res) => {
+  const scope = scopeSchema.parse(req.body?.scope);
+  const secids = await scopeSecids(scope);
+  const [quoteList, market] = await Promise.all([getQuotes(secids), getMarketContext()]);
+  const quotes = new Map(quoteList.map((q) => [q.secid, q]));
 
   // Fetch history in small batches to stay polite with MOEX ISS.
   const inputs: ReviewInput[] = [];
@@ -49,13 +62,16 @@ reviewRouter.post('/', async (_req, res) => {
         const daily = await getCandles(secid, 24, daysAgo(400));
         const quote = quotes.get(secid);
         if (daily.length < 30 || !quote) return null;
+        const indicators = computeIndicators(daily);
         return {
           secid,
           name: quote.name,
           price: quote.price,
           changeTodayPct: quote.changePct,
-          indicators: computeIndicators(daily),
-          recentCloses: daily.slice(-20).map((c) => c.close),
+          indicators,
+          relativeToIndex: await relativeToIndex(secid, indicators, market),
+          // The index review covers ~45 instruments; keep the prompt compact.
+          recentCloses: daily.slice(scope === 'imoex' ? -10 : -20).map((c) => c.close),
         };
       }),
     );
@@ -63,7 +79,7 @@ reviewRouter.post('/', async (_req, res) => {
   }
   if (inputs.length === 0) throw new HttpError(422, 'Недостаточно истории торгов для обзора');
 
-  const result = await reviewWatchlist(inputs);
+  const result = await reviewInstruments(scope, inputs, market);
   const snapshot = inputs.map(({ secid, name, price, changeTodayPct, indicators }) => ({
     secid,
     name,
@@ -72,8 +88,8 @@ reviewRouter.post('/', async (_req, res) => {
     indicators,
   }));
   const { rows } = await pool.query<Row>(
-    'INSERT INTO reviews (model, secids, result, snapshot) VALUES ($1, $2, $3, $4) RETURNING *',
-    [config.AI_MODEL, inputs.map((i) => i.secid), result, JSON.stringify(snapshot)],
+    'INSERT INTO reviews (model, scope, secids, result, snapshot) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+    [config.AI_MODEL, scope, inputs.map((i) => i.secid), result, JSON.stringify(snapshot)],
   );
   res.json(toDto(rows[0]));
 });

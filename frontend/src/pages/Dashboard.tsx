@@ -25,7 +25,17 @@ export function Dashboard() {
       <Card title="Вотчлист" actions={isLoading ? <Spinner className="text-muted" /> : null}>
         <ErrorText error={error} />
         {data?.length === 0 && (
-          <Empty>Пусто. Найдите бумагу через поиск сверху и нажмите «В вотчлист».</Empty>
+          <Empty>
+            Пусто. Не знаете, с чего начать? Откройте{' '}
+            <Link to="/market" className="text-accent hover:underline">
+              «Рынок»
+            </Link>{' '}
+            — там 44 крупнейшие компании и AI-обзор, — или загляните в{' '}
+            <Link to="/learn" className="text-accent hover:underline">
+              «Обучение»
+            </Link>
+            .
+          </Empty>
         )}
         {!!data?.length && (
           <div className="-mx-4 overflow-x-auto">
@@ -71,7 +81,7 @@ export function Dashboard() {
         )}
       </Card>
 
-      <ReviewCard canRun={!!ai?.configured} watchCount={data?.length ?? 0} />
+      <ReviewCard scope="watchlist" canRun={!!ai?.configured} count={data?.length ?? 0} />
     </div>
   );
 }

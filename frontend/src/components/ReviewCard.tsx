@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { api, type ReviewPick } from '../api';
+import { api, type ReviewPick, type ReviewScope } from '../api';
 import { changeColor, dateTime, pct, price } from '../format';
-import { Button, Card, Empty, ErrorText, SignalBadge, Spinner } from './ui';
+import { Button, Card, Empty, ErrorText, SignalBadge, SimpleBox, Spinner } from './ui';
 
 function Picks({ title, picks, color }: { title: string; picks: ReviewPick[]; color: string }) {
   if (picks.length === 0) return null;
@@ -24,23 +24,42 @@ function Picks({ title, picks, color }: { title: string; picks: ReviewPick[]; co
   );
 }
 
-export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount: number }) {
+const COPY: Record<ReviewScope, { title: string; empty: string; running: string }> = {
+  watchlist: {
+    title: 'AI-обзор вотчлиста',
+    empty: 'AI сравнит все бумаги вотчлиста и подскажет, какие сейчас сильнее, а какие слабее.',
+    running: 'Анализирую вотчлист…',
+  },
+  imoex: {
+    title: 'AI-обзор рынка: 44 крупнейшие компании',
+    empty: 'AI разберёт все бумаги индекса Мосбиржи с учётом ставки ЦБ и курса рубля: что происходит на рынке, кто сильнее, кого лучше обойти. Занимает около 30 секунд.',
+    running: 'Анализирую рынок, ~30 сек…',
+  },
+};
+
+const COLLAPSED_ITEMS = 10;
+
+type Props = { scope: ReviewScope; canRun: boolean; count: number };
+
+export function ReviewCard({ scope, canRun, count }: Props) {
   const qc = useQueryClient();
+  const copy = COPY[scope];
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const reviews = useQuery({ queryKey: ['reviews'], queryFn: api.reviews });
+  const [expanded, setExpanded] = useState(false);
+  const reviews = useQuery({ queryKey: ['reviews', scope], queryFn: () => api.reviews(scope) });
 
   const create = useMutation({
-    mutationFn: api.createReview,
+    mutationFn: () => api.createReview(scope),
     onSuccess: (r) => {
       setSelectedId(r.id);
-      qc.invalidateQueries({ queryKey: ['reviews'] });
+      qc.invalidateQueries({ queryKey: ['reviews', scope] });
     },
   });
   const remove = useMutation({
     mutationFn: api.deleteReview,
     onSuccess: () => {
       setSelectedId(null);
-      qc.invalidateQueries({ queryKey: ['reviews'] });
+      qc.invalidateQueries({ queryKey: ['reviews', scope] });
     },
   });
 
@@ -50,7 +69,7 @@ export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount
 
   return (
     <Card
-      title="AI-обзор вотчлиста"
+      title={copy.title}
       actions={
         <div className="flex items-center gap-2">
           {list.length > 1 && (
@@ -66,10 +85,10 @@ export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount
               ))}
             </select>
           )}
-          <Button variant="primary" onClick={() => create.mutate()} disabled={!canRun || watchCount === 0 || create.isPending}>
+          <Button variant="primary" onClick={() => create.mutate()} disabled={!canRun || count === 0 || create.isPending}>
             {create.isPending ? (
               <>
-                <Spinner /> Анализирую вотчлист…
+                <Spinner /> {copy.running}
               </>
             ) : (
               'Сделать обзор'
@@ -81,14 +100,13 @@ export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount
       <ErrorText error={create.error ?? reviews.error} />
       {!review && !reviews.isLoading && (
         <Empty>
-          {watchCount === 0
-            ? 'Добавьте бумаги в вотчлист, чтобы получить обзор.'
-            : 'AI сравнит все бумаги вотчлиста и подскажет, какие сейчас сильнее, а какие слабее.'}
+          {count === 0 && scope === 'watchlist' ? 'Добавьте бумаги в вотчлист, чтобы получить обзор.' : copy.empty}
         </Empty>
       )}
 
       {review && (
         <div className="space-y-5">
+          <SimpleBox text={review.result.simple} />
           <div>
             <p className="text-[15px] leading-relaxed text-slate-100">{review.result.summary}</p>
             {review.result.market && <p className="mt-2 text-sm text-slate-400">{review.result.market}</p>}
@@ -100,7 +118,7 @@ export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount
           </div>
 
           <ul className="divide-y divide-line rounded-lg border border-line">
-            {review.result.items.map((item) => {
+            {(expanded ? review.result.items : review.result.items.slice(0, COLLAPSED_ITEMS)).map((item) => {
               const s = snap.get(item.secid);
               return (
                 <li key={item.secid} className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-start sm:gap-4">
@@ -120,6 +138,11 @@ export function ReviewCard({ canRun, watchCount }: { canRun: boolean; watchCount
               );
             })}
           </ul>
+          {review.result.items.length > COLLAPSED_ITEMS && (
+            <button onClick={() => setExpanded((v) => !v)} className="-mt-3 text-sm text-accent hover:underline">
+              {expanded ? 'Свернуть' : `Показать все (${review.result.items.length})`}
+            </button>
+          )}
 
           {review.result.risks.length > 0 && (
             <div>

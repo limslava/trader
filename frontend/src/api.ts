@@ -54,6 +54,7 @@ export type AnalysisResult = {
   confidence: number;
   horizon: 'days' | 'weeks' | 'months';
   summary: string;
+  simple?: string;
   trend: string;
   bullish: string[];
   bearish: string[];
@@ -79,13 +80,17 @@ export type Analysis = {
 
 export type ReviewPick = { secid: string; reason: string };
 
+export type ReviewScope = 'watchlist' | 'imoex';
+
 export type Review = {
   id: number;
   createdAt: string;
   model: string;
+  scope: ReviewScope;
   secids: string[];
   result: {
     summary: string;
+    simple?: string;
     market: string;
     items: { secid: string; signal: Signal; confidence: number; comment: string }[];
     top: ReviewPick[];
@@ -94,6 +99,23 @@ export type Review = {
   };
   snapshot: { secid: string; name: string; price: number | null; changeTodayPct: number; indicators: Indicators }[];
 };
+
+export type MarketContext = {
+  imoex: {
+    value: number | null;
+    date: string | null;
+    change1wPct: number | null;
+    change1mPct: number | null;
+    change3mPct: number | null;
+    change1yPct: number | null;
+    sma200: number | null;
+    rsi14: number | null;
+  } | null;
+  keyRate: { pct: number; date: string } | null;
+  usdRub: { rate: number; date: string } | null;
+};
+
+export type ImoexMember = { secid: string; shortname: string; weight: number; quote: Quote | null };
 
 export class ApiError extends Error {
   constructor(
@@ -125,6 +147,8 @@ export const api = {
 
   search: (q: string) => request<SearchResult[]>('GET', `/market/search?q=${enc(q)}`),
   quote: (secid: string) => request<Quote>('GET', `/market/quote/${enc(secid)}`),
+  context: () => request<MarketContext>('GET', '/market/context'),
+  imoex: () => request<ImoexMember[]>('GET', '/market/imoex'),
   candles: (secid: string, interval: number, from: string) =>
     request<Candle[]>('GET', `/market/candles/${enc(secid)}?interval=${interval}&from=${from}`),
 
@@ -139,7 +163,7 @@ export const api = {
   analyze: (secid: string, question?: string) => request<Analysis>('POST', `/analysis/${enc(secid)}`, { question }),
   deleteAnalysis: (id: number) => request('DELETE', `/analysis/${id}`),
 
-  reviews: () => request<Review[]>('GET', '/review'),
-  createReview: () => request<Review>('POST', '/review'),
+  reviews: (scope: ReviewScope) => request<Review[]>('GET', `/review?scope=${scope}`),
+  createReview: (scope: ReviewScope) => request<Review>('POST', '/review', { scope }),
   deleteReview: (id: number) => request('DELETE', `/review/${id}`),
 };

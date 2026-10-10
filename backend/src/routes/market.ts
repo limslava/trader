@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { CANDLE_INTERVALS, getCandles, getQuote, search } from '../moex.js';
+import { getMarketContext } from '../context.js';
+import { CANDLE_INTERVALS, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
 
 export const marketRouter = Router();
 
@@ -29,6 +30,17 @@ marketRouter.get('/candles/:secid', async (req, res) => {
     })
     .parse(req.query);
   res.json(await getCandles(secid, interval, from));
+});
+
+marketRouter.get('/context', async (_req, res) => {
+  res.json(await getMarketContext());
+});
+
+/** IMOEX constituents with weights and live quotes. */
+marketRouter.get('/imoex', async (_req, res) => {
+  const members = await getIndexComposition();
+  const quotes = new Map((await getQuotes(members.map((m) => m.secid))).map((q) => [q.secid, q]));
+  res.json(members.map((m) => ({ ...m, quote: quotes.get(m.secid) ?? null })));
 });
 
 export { secidSchema };

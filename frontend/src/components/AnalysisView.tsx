@@ -1,6 +1,6 @@
 import type { Analysis } from '../api';
 import { dateTime, price } from '../format';
-import { SignalBadge } from './ui';
+import { SignalBadge, SimpleBox } from './ui';
 
 const HORIZON: Record<Analysis['result']['horizon'], string> = {
   days: 'несколько дней',
@@ -37,6 +37,7 @@ export function AnalysisView({ analysis }: { analysis: Analysis }) {
         </span>
       </div>
 
+      <SimpleBox text={r.simple} />
       <p className="text-[15px] leading-relaxed text-slate-100">{r.summary}</p>
       {r.trend && <p className="text-sm text-slate-300">{r.trend}</p>}
 

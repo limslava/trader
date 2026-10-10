@@ -9,6 +9,8 @@ import './index.css';
 import { Dashboard } from './pages/Dashboard';
 import { History } from './pages/History';
 import { Instrument } from './pages/Instrument';
+import { Learn } from './pages/Learn';
+import { Market } from './pages/Market';
 import { Login } from './pages/Login';
 
 const queryClient = new QueryClient({
@@ -50,6 +52,8 @@ function App() {
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="s/:secid" element={<Instrument />} />
+        <Route path="market" element={<Market />} />
+        <Route path="learn" element={<Learn />} />
         <Route path="history" element={<History />} />
         <Route path="*" element={<Dashboard />} />
       </Route>

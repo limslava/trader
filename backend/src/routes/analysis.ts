@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { aiConfigured, analyze } from '../ai.js';
 import { config } from '../config.js';
+import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
@@ -79,7 +80,9 @@ analysisRouter.post('/:secid', async (req, res) => {
   const [quote, daily] = await Promise.all([getQuote(secid), getCandles(secid, 24, daysAgo(400))]);
   if (daily.length < 30) throw new HttpError(422, 'Слишком мало истории торгов для анализа');
   const indicators = computeIndicators(daily);
-  const result = await analyze(quote, indicators, daily, question || undefined);
+  const market = await getMarketContext();
+  const relative = await relativeToIndex(secid, indicators, market);
+  const result = await analyze(quote, indicators, daily, { market, relative }, question || undefined);
 
   const { rows } = await pool.query<Row>(
     `INSERT INTO analyses (secid, shortname, model, price, signal, confidence, question, result, indicators)
