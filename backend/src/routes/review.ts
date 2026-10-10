@@ -7,6 +7,7 @@ import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { getNewsSafe, headlines, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
+import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { daysAgo, getCandles, getIndexComposition, getQuotes } from '../moex.js';
 
 export const reviewRouter = Router();
@@ -88,6 +89,7 @@ reviewRouter.post('/', async (req, res) => {
           // The index review covers ~45 instruments; keep the prompt compact and use market news only.
           recentCloses: daily.slice(scope === 'imoex' ? -10 : -20).map((c) => c.close),
           news: scope === 'watchlist' ? headlines(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4)) : undefined,
+          company: companyForPrompt(await getCompanyData(secid)),
         };
       }),
     );

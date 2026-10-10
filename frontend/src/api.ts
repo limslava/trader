@@ -117,6 +117,29 @@ export type MarketContext = {
 
 export type NewsItem = { title: string; source: string; url: string; publishedAt: string };
 
+export type Dividend = {
+  recordDate: string | null;
+  lastBuyDate: string | null;
+  paymentDate: string | null;
+  declaredDate: string | null;
+  amount: number | null;
+  currency: string | null;
+  yieldPct: number | null;
+  regularity: string | null;
+};
+
+export type CompanyInfo =
+  | { configured: false }
+  | {
+      configured: true;
+      sandbox: boolean;
+      labels: Record<string, string>;
+      data: {
+        fundamentals: Record<string, number | string | null> | null;
+        dividends: { upcoming: Dividend[]; recent: Dividend[] };
+      } | null;
+    };
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -151,6 +174,7 @@ export const api = {
   quote: (secid: string) => request<Quote>('GET', `/market/quote/${enc(secid)}`),
   context: () => request<MarketContext>('GET', '/market/context'),
   imoex: () => request<ImoexMember[]>('GET', '/market/imoex'),
+  company: (secid: string) => request<CompanyInfo>('GET', `/market/company/${enc(secid)}`),
   marketNews: () => request<NewsItem[]>('GET', '/market/news'),
   news: (secid: string) => request<NewsItem[]>('GET', `/market/news/${enc(secid)}`),
   candles: (secid: string, interval: number, from: string) =>

@@ -15,6 +15,11 @@ const schema = z.object({
   AI_BASE_URL: z.string().url().default('https://api.deepseek.com'),
   AI_MODEL: z.string().default('deepseek-chat'),
 
+  // T-Invest API token (Т-Инвестиции): dividends, fundamentals, sandbox trading. Optional.
+  TINKOFF_TOKEN: z.string().default(''),
+  // true: sandbox contour (needs a Sandbox token); false: production (read-only or full-access token).
+  TINKOFF_SANDBOX: z.enum(['true', 'false']).default('true'),
+
   MOEX_ISS_URL: z.string().url().default('https://iss.moex.com/iss'),
   STATIC_DIR: z.string().optional(),
 });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getMarketContext } from '../context.js';
 import { getNewsSafe, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
+import { FUNDAMENTAL_FIELDS, getCompanyData, isSandbox, tinkoffConfigured } from '../tinkoff.js';
 import { CANDLE_INTERVALS, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
 
 export const marketRouter = Router();
@@ -51,6 +52,13 @@ marketRouter.get('/news', async (_req, res) => {
 marketRouter.get('/news/:secid', async (req, res) => {
   const quote = await getQuote(secidSchema.parse(req.params.secid));
   res.json(await getNewsSafe(newsQueryFor(quote.secid, quote.name), 14, 12));
+});
+
+/** Dividends and fundamentals from T-Invest; `configured: false` when no token is set. */
+marketRouter.get('/company/:secid', async (req, res) => {
+  const secid = secidSchema.parse(req.params.secid);
+  if (!tinkoffConfigured()) return void res.json({ configured: false });
+  res.json({ configured: true, sandbox: isSandbox, labels: FUNDAMENTAL_FIELDS, data: await getCompanyData(secid) });
 });
 
 export { secidSchema };

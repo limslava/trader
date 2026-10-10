@@ -12,8 +12,10 @@ export function pct(v: number | null | undefined): string {
 
 export function money(v: number | null | undefined): string {
   if (v == null) return '—';
-  if (v >= 1e9) return `${nf(1).format(v / 1e9)} млрд ₽`;
-  if (v >= 1e6) return `${nf(1).format(v / 1e6)} млн ₽`;
+  const a = Math.abs(v);
+  if (a >= 1e12) return `${nf(2).format(v / 1e12)} трлн ₽`;
+  if (a >= 1e9) return `${nf(1).format(v / 1e9)} млрд ₽`;
+  if (a >= 1e6) return `${nf(1).format(v / 1e6)} млн ₽`;
   return `${nf(0).format(v)} ₽`;
 }
 
@@ -28,4 +30,10 @@ export function changeColor(v: number | null | undefined): string {
 
 export function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+}
+
+export function date(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}.${m}.${y}`;
 }

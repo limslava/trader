@@ -7,6 +7,7 @@ import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
+import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { daysAgo, getCandles, getQuote } from '../moex.js';
 import { secidSchema } from './market.js';
 
@@ -83,9 +84,19 @@ analysisRouter.post('/:secid', async (req, res) => {
   const [quote, daily] = await Promise.all([getQuote(secid), getCandles(secid, 24, daysAgo(400))]);
   if (daily.length < 30) throw new HttpError(422, 'Слишком мало истории торгов для анализа');
   const indicators = computeIndicators(daily);
-  const [market, news] = await Promise.all([getMarketContext(), getNewsSafe(newsQueryFor(secid, quote.name), 14, 12)]);
+  const [market, news, company] = await Promise.all([
+    getMarketContext(),
+    getNewsSafe(newsQueryFor(secid, quote.name), 14, 12),
+    getCompanyData(secid),
+  ]);
   const relative = await relativeToIndex(secid, indicators, market);
-  const result = await analyze(quote, indicators, daily, { market, relative, news: headlines(news) }, question || undefined);
+  const result = await analyze(
+    quote,
+    indicators,
+    daily,
+    { market, relative, news: headlines(news), company: companyForPrompt(company) },
+    question || undefined,
+  );
 
   const { rows } = await pool.query<Row>(
     `INSERT INTO analyses (secid, shortname, model, price, signal, confidence, question, result, indicators, news)

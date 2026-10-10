@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AnalysisView } from '../components/AnalysisView';
+import { CompanyCard } from '../components/CompanyCard';
 import { IndicatorsGrid } from '../components/IndicatorsGrid';
 import { NewsCard } from '../components/NewsList';
 import { PriceChart } from '../components/PriceChart';
@@ -90,6 +91,8 @@ export function Instrument() {
         <ErrorText error={indicators.error} />
         {indicators.data && <IndicatorsGrid ind={indicators.data} />}
       </Card>
+
+      <CompanyCard secid={secid} />
 
       <Card title="AI-анализ">
         <div className="mb-5 flex flex-col gap-2 sm:flex-row">
