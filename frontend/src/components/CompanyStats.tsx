@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, ExternalLink } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { api, type Dividend, type Indicators } from '../api';
+import { NewsChips } from './NewsChips';
 import { ScoreBreakdown } from './ScoreBadge';
 import { date, dateTime, money, price } from '../format';
 import { Delta, Empty, ErrorText, SectionHeader, Skeleton, Stat, Surface } from './ui';
@@ -196,7 +197,7 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
   });
   return (
     <Surface className="p-5 md:p-5">
-      <SectionHeader title={title} subtitle="Заголовки за 2 недели — AI учитывает их в анализе" action={action} />
+      <SectionHeader title={title} subtitle="Интерфакс, Коммерсантъ, Ведомости, Финам, ЦБ и Мосбиржа за 2 недели; тон и важность оценивает AI" action={action} />
       <ErrorText error={error} />
       {isLoading && <Skeleton className="h-40" />}
       {data?.length === 0 && <Empty>Свежих новостей не нашлось.</Empty>}
@@ -205,7 +206,10 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
           <li key={n.url}>
             <a href={n.url} target="_blank" rel="noreferrer noopener" className="group flex gap-3 py-3">
               <span className="min-w-0 flex-1">
-                <span className="block text-sm leading-snug font-medium group-hover:underline">{n.title}</span>
+                <span className="block text-sm leading-snug font-medium group-hover:underline">
+                  <NewsChips n={n} />
+                  {n.title}
+                </span>
                 <span className="mt-1 block text-xs text-muted">
                   {n.source}
                   {n.publishedAt && ` · ${dateTime(n.publishedAt)}`}

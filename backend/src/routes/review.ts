@@ -7,6 +7,7 @@ import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { daysAgo, getCandles, getIndexComposition, getQuotes } from '../moex.js';
+import { marketNews as primaryMarketNews, newsForTicker } from '../feeds.js';
 import { getNewsSafe, headlines, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { portfolio as getPortfolio } from '../trading.js';
@@ -81,7 +82,7 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
   const [quoteList, market, marketNews, pf] = await Promise.all([
     getQuotes(secids),
     getMarketContext(),
-    getNewsSafe(MARKET_NEWS_QUERY, 7, 15),
+    primaryMarketNews().then(async (n) => (n.length >= 5 ? n : [...n, ...(await getNewsSafe(MARKET_NEWS_QUERY, 7, 15 - n.length))])),
     scope === 'portfolio' ? getPortfolio() : null,
   ]);
   const quotes = new Map(quoteList.map((q) => [q.secid, q]));
@@ -108,7 +109,7 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
           relativeToIndex: await relativeToIndex(secid, indicators, market),
           // The index review covers ~45 instruments; keep the prompt compact and use market news only.
           recentCloses: daily.slice(scope === 'imoex' ? -5 : -20).map((c) => c.close),
-          news: scope !== 'imoex' ? headlines(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4)) : undefined,
+          news: scope !== 'imoex' ? headlines(await newsForTicker(secid, 14, 4).then(async (n) => (n.length >= 2 ? n : [...n, ...(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4 - n.length))]))) : undefined,
           company: companyForPrompt(await getCompanyData(secid)),
           holding: (() => {
             const h = holdings.get(secid);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getMarketContext } from '../context.js';
+import { marketNews, newsForTicker, urgentEvents } from '../feeds.js';
 import { getNewsSafe, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { FUNDAMENTAL_FIELDS, getCompanyData, isSandbox, tinkoffConfigured } from '../tinkoff.js';
 import { CANDLE_INTERVALS, daysAgo, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
@@ -46,12 +47,19 @@ marketRouter.get('/imoex', async (_req, res) => {
 });
 
 marketRouter.get('/news', async (_req, res) => {
-  res.json(await getNewsSafe(MARKET_NEWS_QUERY, 7, 15));
+  const primary = await marketNews();
+  res.json(primary.length >= 5 ? primary : [...primary, ...(await getNewsSafe(MARKET_NEWS_QUERY, 7, 15 - primary.length))]);
+});
+
+/** Ticker-specific events of the last 36 hours worth a glance. */
+marketRouter.get('/events', async (_req, res) => {
+  res.json(await urgentEvents());
 });
 
 marketRouter.get('/news/:secid', async (req, res) => {
   const quote = await getQuote(secidSchema.parse(req.params.secid));
-  res.json(await getNewsSafe(newsQueryFor(quote.secid, quote.name), 14, 12));
+  const primary = await newsForTicker(quote.secid);
+  res.json(primary.length >= 4 ? primary : [...primary, ...(await getNewsSafe(newsQueryFor(quote.secid, quote.name), 14, 12 - primary.length))]);
 });
 
 /** Dividends and fundamentals from T-Invest; `configured: false` when no token is set. */

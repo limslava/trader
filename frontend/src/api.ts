@@ -123,7 +123,16 @@ export type MarketContext = {
 
 export type OfzPoint = { secid: string; name: string; maturity: string; yieldPct: number };
 
-export type NewsItem = { title: string; source: string; url: string; publishedAt: string };
+export type NewsItem = {
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  event?: string;
+  sentiment?: number | null;
+  impact?: string | null;
+  tickers?: string[];
+};
 
 export type Dividend = {
   recordDate: string | null;
@@ -306,6 +315,7 @@ export const api = {
   company: (secid: string) => request<CompanyInfo>('GET', `/market/company/${enc(secid)}`),
   sparklines: (secids: string[]) =>
     request<Record<string, number[]>>('GET', `/market/sparklines?secids=${secids.map(enc).join(',')}`),
+  events: () => request<NewsItem[]>('GET', '/market/events'),
   marketNews: () => request<NewsItem[]>('GET', '/market/news'),
   news: (secid: string) => request<NewsItem[]>('GET', `/market/news/${enc(secid)}`),
   candles: (secid: string, interval: number, from: string) =>

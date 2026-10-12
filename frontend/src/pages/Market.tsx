@@ -7,6 +7,7 @@ import { NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
 import { Screener } from '../components/Screener';
+import { NewsChips } from '../components/NewsChips';
 import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Button, Delta, Empty, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
@@ -174,6 +175,36 @@ function Companies() {
   );
 }
 
+function UrgentEvents() {
+  const { data } = useQuery({ queryKey: ['events'], queryFn: api.events, staleTime: 10 * 60_000 });
+  if (!data?.length) return null;
+  return (
+    <Surface className="p-5">
+      <SectionHeader title="Важные события за 36 часов" subtitle="Новости по конкретным бумагам, которые могут сдвинуть цену" />
+      <ul className="divide-y divide-line/70">
+        {data.map((n) => (
+          <li key={n.url} className="flex items-start gap-3 py-2.5">
+            <span className="flex shrink-0 gap-1">
+              {(n.tickers ?? []).slice(0, 2).map((t) => (
+                <Link key={t} to={`/s/${t}`} className="rounded-lg bg-primary px-1.5 py-0.5 text-[10px] font-bold text-on-primary hover:opacity-80">
+                  {t}
+                </Link>
+              ))}
+            </span>
+            <a href={n.url} target="_blank" rel="noreferrer noopener" className="min-w-0 flex-1 text-sm leading-snug hover:underline">
+              <NewsChips n={n} />
+              {n.title}
+              <span className="block text-xs text-muted">
+                {n.source} · {new Date(n.publishedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </Surface>
+  );
+}
+
 type MarketTab = 'review' | 'screener' | 'companies' | 'movers' | 'news';
 
 export function Market() {
@@ -245,7 +276,12 @@ export function Market() {
         {tab === 'screener' && <Screener />}
         {tab === 'companies' && <Companies />}
         {tab === 'movers' && <Movers />}
-        {tab === 'news' && <NewsFeed title="Новости рынка" />}
+        {tab === 'news' && (
+          <div className="space-y-4">
+            <UrgentEvents />
+            <NewsFeed title="Новости рынка" />
+          </div>
+        )}
       </div>
     </div>
   );

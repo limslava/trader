@@ -1,11 +1,21 @@
 import { TtlCache } from './http.js';
 
-export type NewsItem = { title: string; source: string; url: string; publishedAt: string };
+export type NewsItem = {
+  title: string;
+  source: string;
+  url: string;
+  publishedAt: string;
+  /** Set when the headline came through the classified primary-feed pipeline. */
+  event?: string;
+  sentiment?: number | null;
+  impact?: string | null;
+  tickers?: string[];
+};
 
 const cache = new TtlCache<NewsItem[]>(30 * 60_000);
 
-const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-function decode(s: string): string {
+export const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+export function decode(s: string): string {
   return s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
@@ -13,10 +23,10 @@ function decode(s: string): string {
     .trim();
 }
 
-const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))?.[1];
+export const tag = (xml: string, name: string) => xml.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))?.[1];
 
 // MOEX names are abbreviated ("Татнфт 3ао", "ГМКНорНик"); news use the everyday names.
-const COMMON_NAMES: Record<string, string> = {
+export const COMMON_NAMES: Record<string, string> = {
   AFKS: 'АФК Система', AFLT: 'Аэрофлот', ALRS: 'АЛРОСА', BSPB: 'Банк Санкт-Петербург', CBOM: 'МКБ',
   CHMF: 'Северсталь', CNRU: 'Циан', DOMRF: 'ДОМ.РФ', ENPG: 'Эн+', FLOT: 'Совкомфлот', GAZP: 'Газпром',
   GMKN: 'Норникель', HEAD: 'HeadHunter', IRAO: 'Интер РАО', LKOH: 'Лукойл', MAGN: 'ММК', MDMG: 'Мать и дитя',
@@ -96,5 +106,11 @@ export async function getNewsSafe(query: string, days?: number, limit?: number):
 }
 
 /** Compact form for prompts: date, source, headline. */
+/** Compact form for prompts: date, source, event tag, tone, headline. */
 export const headlines = (items: NewsItem[]) =>
-  items.map((n) => `${n.publishedAt.slice(0, 10)} [${n.source}] ${n.title}`);
+  items.map((n) => {
+    const tags = [n.event && n.event !== 'other' ? n.event : null, n.sentiment != null ? `тон ${n.sentiment > 0 ? '+' : ''}${n.sentiment.toFixed(1)}` : null, n.impact === 'high' ? 'важно' : null]
+      .filter(Boolean)
+      .join(', ');
+    return `${n.publishedAt.slice(0, 10)} [${n.source}]${tags ? ` (${tags})` : ''} ${n.title}`;
+  });

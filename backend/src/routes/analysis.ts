@@ -6,6 +6,7 @@ import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
+import { newsForTicker } from '../feeds.js';
 import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
 import { buildScorecard, pastCallsFor } from '../scorecard.js';
 import { computeScore } from '../scoring.js';
@@ -94,7 +95,8 @@ analysisRouter.post('/:secid', async (req, res) => {
   const indicators = computeIndicators(daily);
   const [market, news, company, pastCalls] = await Promise.all([
     getMarketContext(),
-    getNewsSafe(newsQueryFor(secid, quote.name), 14, 12),
+    // Primary feeds first; Google News fills the gap for companies the feeds rarely mention.
+    newsForTicker(secid).then(async (n) => (n.length >= 4 ? n : [...n, ...(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 12 - n.length))])),
     getCompanyData(secid),
     pastCallsFor(secid, daily),
   ]);
