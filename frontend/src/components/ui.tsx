@@ -215,3 +215,24 @@ export function Monogram({ secid, size = 'md' }: { secid: string; size?: 'sm' | 
     </span>
   );
 }
+
+/** Underlined tabs for switching page sections. */
+export function Tabs<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: ReactNode }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="no-scrollbar -mx-1 flex gap-1 overflow-x-auto border-b border-line/70" role="tablist">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          role="tab"
+          aria-selected={o.value === value}
+          onClick={() => onChange(o.value)}
+          className={`-mb-px border-b-2 px-3 py-2.5 text-sm font-semibold whitespace-nowrap transition ${
+            o.value === value ? 'border-ink text-ink' : 'border-transparent text-muted hover:text-ink'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}

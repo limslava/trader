@@ -1,14 +1,56 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowDownUp, Star } from 'lucide-react';
+import { ArrowDownUp, Star, TrendingDown, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { api } from '../api';
+import { api, type ImoexMember } from '../api';
 import { NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
 import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Button, Delta, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface } from '../components/ui';
+
+function MoverList({ title, items, Icon, tone }: { title: string; items: ImoexMember[]; Icon: typeof TrendingUp; tone: string }) {
+  return (
+    <Surface className="p-5 md:p-6">
+      <h3 className={`mb-3 flex items-center gap-2 font-semibold ${tone}`}>
+        <Icon className="size-4" aria-hidden />
+        {title}
+      </h3>
+      <ul className="divide-y divide-line/70">
+        {items.map((m) => (
+          <li key={m.secid}>
+            <Link to={`/s/${m.secid}`} className="flex items-center gap-3 py-2.5">
+              <Monogram secid={m.secid} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">{m.secid}</span>
+                <span className="block truncate text-xs text-muted">{m.shortname}</span>
+              </span>
+              <span className="text-right">
+                <span className="block text-sm font-semibold">{price(m.quote?.price)}</span>
+                <Delta value={m.quote?.changePct} size="sm" />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </Surface>
+  );
+}
+
+function Movers() {
+  const { data } = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
+  if (!data) return null;
+  const sorted = [...data].filter((m) => m.quote).sort((a, b) => (b.quote!.changePct ?? 0) - (a.quote!.changePct ?? 0));
+  if (sorted.every((m) => !m.quote!.changePct)) return null; // before the session opens there is nothing to rank
+  return (
+    <div className="grid gap-3 md:grid-cols-2">
+      <MoverList title="Растут сегодня" items={sorted.slice(0, 5)} Icon={TrendingUp} tone="text-up" />
+      <MoverList title="Падают сегодня" items={sorted.slice(-5).reverse()} Icon={TrendingDown} tone="text-down" />
+    </div>
+  );
+}
+
 import { money, price } from '../format';
 
 type Sort = 'weight' | 'gainers' | 'losers';
@@ -170,6 +212,7 @@ export function Market() {
         </div>
       </div>
 
+      <Movers />
       <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />
       <Companies />
       <NewsFeed title="Новости рынка" />

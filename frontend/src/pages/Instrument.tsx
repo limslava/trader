@@ -4,14 +4,16 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AiVerdict } from '../components/AiVerdict';
+import { DecisionSummary } from '../components/DecisionSummary';
 import { Analysts } from '../components/Analysts';
 import { Dividends, KeyStats, NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { SandboxBadge, TradeTicket } from '../components/TradeTicket';
-import { Button, Delta, ErrorText, Monogram, Skeleton, Surface } from '../components/ui';
+import { Button, Delta, ErrorText, Monogram, Skeleton, Surface, Tabs } from '../components/ui';
 import { price } from '../format';
 
 type Levels = { support: number[]; resistance: number[] };
+type Tab = 'ai' | 'stats' | 'analysts' | 'dividends' | 'news';
 
 /** Matches Tailwind's lg breakpoint; the trade ticket is rendered once, in whichever slot fits. */
 function useWide() {
@@ -29,7 +31,10 @@ export function Instrument() {
   const secid = useParams().secid!.toUpperCase();
   const qc = useQueryClient();
   const [levels, setLevels] = useState<Levels>();
+  const [tab, setTab] = useState<Tab>('ai');
   const wide = useWide();
+  // A new instrument starts on the verdict tab.
+  useEffect(() => setTab('ai'), [secid]);
 
   const quote = useQuery({ queryKey: ['quote', secid], queryFn: () => api.quote(secid), refetchInterval: 20_000 });
   const indicators = useQuery({ queryKey: ['indicators', secid], queryFn: () => api.indicators(secid) });
@@ -56,7 +61,7 @@ export function Instrument() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Link to="/market" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
         <ChevronLeft className="size-4" aria-hidden />
         Рынок
@@ -87,20 +92,22 @@ export function Instrument() {
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-6">
-          <Surface className="p-5 md:p-5">
+        <div className="min-w-0 space-y-4">
+          <Surface className="p-5">
             {q ? (
-              <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="text-4xl font-semibold tracking-[-0.025em] md:text-5xl">{price(q.price, q.decimals)}</span>
+              <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span className="text-4xl font-semibold tracking-[-0.025em]">{price(q.price, q.decimals)}</span>
                 <span className="text-xl font-medium text-muted">₽</span>
                 <Delta value={q.changePct} size="lg" suffix="сегодня" />
                 {q.updateTime && <span className="text-xs text-muted">· {q.updateTime} МСК</span>}
               </div>
             ) : (
-              <Skeleton className="mb-4 h-14 w-64" />
+              <Skeleton className="mb-3 h-12 w-64" />
             )}
-            <PriceChart secid={secid} levels={levels} height="h-[240px] md:h-[320px]" />
+            <PriceChart secid={secid} levels={levels} height="h-[220px] md:h-[260px]" />
           </Surface>
+
+          <DecisionSummary secid={secid} currentPrice={q?.price ?? null} onTab={(t) => setTab(t as Tab)} />
 
           {canTrade && !wide && (
             <Surface id="trade" className="scroll-mt-20 p-5">
@@ -111,19 +118,33 @@ export function Instrument() {
               <TradeTicket secid={secid} />
             </Surface>
           )}
-          <AiVerdict secid={secid} onLevels={setLevels} />
-          <KeyStats secid={secid} ind={indicators.data} />
-          <Analysts secid={secid} currentPrice={q?.price ?? null} />
-          <Dividends secid={secid} />
-          <NewsFeed secid={secid} title="Новости компании" />
+
+          <Tabs
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: 'ai', label: 'Вердикт AI' },
+              { value: 'stats', label: 'Показатели' },
+              { value: 'analysts', label: 'Аналитики' },
+              { value: 'dividends', label: 'Дивиденды' },
+              { value: 'news', label: 'Новости' },
+            ]}
+          />
+          <div key={tab} className="animate-rise">
+            {tab === 'ai' && <AiVerdict secid={secid} onLevels={setLevels} />}
+            {tab === 'stats' && <KeyStats secid={secid} ind={indicators.data} />}
+            {tab === 'analysts' && <Analysts secid={secid} currentPrice={q?.price ?? null} />}
+            {tab === 'dividends' && <Dividends secid={secid} />}
+            {tab === 'news' && <NewsFeed secid={secid} title="Новости компании" />}
+          </div>
         </div>
 
         {canTrade && wide && (
           <aside>
-            <div className="lg:sticky lg:top-24">
+            <div className="lg:sticky lg:top-20">
               <Surface className="p-5">
                 <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-semibold tracking-tight">Сделка</h2>
+                  <h2 className="text-base font-semibold tracking-tight">Сделка</h2>
                   <SandboxBadge />
                 </div>
                 <TradeTicket secid={secid} />

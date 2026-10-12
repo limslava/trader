@@ -63,7 +63,9 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
 
   const list = history.data ?? [];
   const a = list.find((x) => x.id === selectedId) ?? list[0];
-  useEffect(() => onLevels(a?.result.levels), [a, onLevels]);
+  useEffect(() => {
+    if (a) onLevels(a.result.levels);
+  }, [a, onLevels]);
   const r = a?.result;
   const meta = a ? SIGNAL_META[a.signal] : null;
 

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowDownLeft, ArrowUpRight, Users } from 'lucide-react';
 import { api } from '../api';
 import { date, price } from '../format';
-import { SectionHeader, SIGNAL_META, Surface } from './ui';
+import { Empty, SectionHeader, SIGNAL_META, Surface } from './ui';
 
 /** Brokerage-house targets (consensus + distribution) and disclosed insider trades. */
 export function Analysts({ secid, currentPrice }: { secid: string; currentPrice: number | null }) {
@@ -10,7 +10,13 @@ export function Analysts({ secid, currentPrice }: { secid: string; currentPrice:
   const data = company.data?.configured ? company.data.data : null;
   const f = data?.forecast;
   const insiders = (data?.insiders ?? []).slice(0, 6);
-  if (!f && insiders.length === 0) return null;
+  if (!f && insiders.length === 0) {
+    return (
+      <Surface className="p-5">
+        <Empty>{company.isLoading ? 'Загружаю…' : 'Аналитики не покрывают эту бумагу, сделок инсайдеров не раскрыто.'}</Empty>
+      </Surface>
+    );
+  }
 
   const total = f ? f.counts.buy + f.counts.hold + f.counts.sell : 0;
   const upside = f?.consensus.target && currentPrice ? ((f.consensus.target - currentPrice) / currentPrice) * 100 : f?.consensus.upsidePct;

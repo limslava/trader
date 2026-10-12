@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Plus, Sparkles, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowRight, ChevronDown, Plus, Sparkles, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router';
-import { api, ApiError, type ImoexMember } from '../api';
+import { api, ApiError } from '../api';
 import { ReviewCard } from '../components/ReviewCard';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Delta, Monogram, SectionHeader, SIGNAL_META, Skeleton, Surface } from '../components/ui';
@@ -187,47 +187,6 @@ function Watchlist() {
   );
 }
 
-function MoverList({ title, items, Icon, tone }: { title: string; items: ImoexMember[]; Icon: typeof TrendingUp; tone: string }) {
-  return (
-    <Surface className="p-5 md:p-6">
-      <h3 className={`mb-3 flex items-center gap-2 font-semibold ${tone}`}>
-        <Icon className="size-4" aria-hidden />
-        {title}
-      </h3>
-      <ul className="divide-y divide-line/70">
-        {items.map((m) => (
-          <li key={m.secid}>
-            <Link to={`/s/${m.secid}`} className="flex items-center gap-3 py-2.5">
-              <Monogram secid={m.secid} size="sm" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">{m.secid}</span>
-                <span className="block truncate text-xs text-muted">{m.shortname}</span>
-              </span>
-              <span className="text-right">
-                <span className="block text-sm font-semibold">{price(m.quote?.price)}</span>
-                <Delta value={m.quote?.changePct} size="sm" />
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
-    </Surface>
-  );
-}
-
-function Movers() {
-  const { data } = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
-  if (!data) return null;
-  const sorted = [...data].filter((m) => m.quote).sort((a, b) => (b.quote!.changePct ?? 0) - (a.quote!.changePct ?? 0));
-  if (sorted.every((m) => !m.quote!.changePct)) return null; // before the session opens there is nothing to rank
-  return (
-    <div className="grid gap-3 md:grid-cols-2">
-      <MoverList title="Растут сегодня" items={sorted.slice(0, 5)} Icon={TrendingUp} tone="text-up" />
-      <MoverList title="Падают сегодня" items={sorted.slice(-5).reverse()} Icon={TrendingDown} tone="text-down" />
-    </div>
-  );
-}
-
 export function Home() {
   const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
   const wl = useQuery({ queryKey: ['watchlist'], queryFn: api.watchlist });
@@ -245,8 +204,15 @@ export function Home() {
       </div>
       <AiIdea />
       <Watchlist />
-      <Movers />
-      <ReviewCard scope="watchlist" canRun={!!ai.data?.configured} count={wl.data?.length ?? 0} />
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
+          <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
+          AI-обзор вотчлиста: сравнить все бумаги разом
+        </summary>
+        <div className="mt-3">
+          <ReviewCard scope="watchlist" canRun={!!ai.data?.configured} count={wl.data?.length ?? 0} />
+        </div>
+      </details>
     </div>
   );
 }

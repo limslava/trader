@@ -128,7 +128,13 @@ function DividendItem({ d, future }: { d: Dividend; future?: boolean }) {
 export function Dividends({ secid }: { secid: string }) {
   const company = useCompany(secid);
   const divs = company.data?.configured ? company.data.data?.dividends : null;
-  if (!divs || (divs.upcoming.length === 0 && divs.recent.length === 0)) return null;
+  if (!divs || (divs.upcoming.length === 0 && divs.recent.length === 0)) {
+    return (
+      <Surface className="p-5">
+        <Empty>{company.isLoading ? 'Загружаю…' : 'По этой бумаге нет данных о дивидендах.'}</Empty>
+      </Surface>
+    );
+  }
   const next = divs.upcoming[0];
   const today = new Date().toISOString().slice(0, 10);
   const canStillBuy = next && (next.lastBuyDate ?? '') >= today;
