@@ -8,7 +8,7 @@ import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
 import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
-import { Button, Delta, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface } from '../components/ui';
+import { Button, Delta, Empty, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
 
 function MoverList({ title, items, Icon, tone }: { title: string; items: ImoexMember[]; Icon: typeof TrendingUp; tone: string }) {
   return (
@@ -40,9 +40,15 @@ function MoverList({ title, items, Icon, tone }: { title: string; items: ImoexMe
 
 function Movers() {
   const { data } = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
-  if (!data) return null;
+  if (!data) return <Skeleton className="h-64 rounded-[18px]" />;
   const sorted = [...data].filter((m) => m.quote).sort((a, b) => (b.quote!.changePct ?? 0) - (a.quote!.changePct ?? 0));
-  if (sorted.every((m) => !m.quote!.changePct)) return null; // before the session opens there is nothing to rank
+  if (sorted.every((m) => !m.quote!.changePct)) {
+    return (
+      <Surface className="p-5">
+        <Empty>Торги ещё не начались — лидеры дня появятся после открытия биржи.</Empty>
+      </Surface>
+    );
+  }
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <MoverList title="Растут сегодня" items={sorted.slice(0, 5)} Icon={TrendingUp} tone="text-up" />
@@ -167,23 +173,28 @@ function Companies() {
   );
 }
 
+type MarketTab = 'review' | 'companies' | 'movers' | 'news';
+
 export function Market() {
+  const [tab, setTab] = useState<MarketTab>('review');
   const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
   const members = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
   const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
   const imoex = ctx.data?.imoex;
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="space-y-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_300px]">
         <Surface className="flex flex-col p-5">
-          <div className="text-sm font-medium text-muted">Индекс Мосбиржи · IMOEX</div>
-          <div className="mt-1 mb-4 text-4xl font-semibold tracking-[-0.025em]">{imoex ? price(imoex.value) : <Skeleton className="h-11 w-48" />}</div>
-          <div className="min-h-[300px] flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <span className="text-sm font-medium text-muted">Индекс Мосбиржи</span>
+            <span className="text-3xl font-semibold tracking-[-0.025em]">{imoex ? price(imoex.value) : <Skeleton className="inline-block h-8 w-32" />}</span>
+          </div>
+          <div className="mt-2 min-h-[220px] flex-1">
             <PriceChart secid="IMOEX" fill />
           </div>
         </Surface>
-        <div className="grid gap-3">
+        <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
           {[
             {
               label: 'Ключевая ставка ЦБ',
@@ -203,19 +214,31 @@ export function Market() {
               }.`,
             },
           ].map((s) => (
-            <Surface key={s.label} className="p-5">
-              <div className="text-sm font-medium text-muted">{s.label}</div>
-              <div className="mt-1 text-2xl font-semibold tracking-tight">{s.value}</div>
-              <p className="mt-2 text-[13px] leading-relaxed text-muted">{s.hint}</p>
+            <Surface key={s.label} className="p-4" title={s.hint}>
+              <div className="text-xs font-medium text-muted">{s.label}</div>
+              <div className="mt-1 text-xl font-semibold tracking-tight">{s.value}</div>
+              <p className="mt-1.5 hidden text-xs leading-relaxed text-muted lg:block">{s.hint}</p>
             </Surface>
           ))}
         </div>
       </div>
 
-      <Movers />
-      <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />
-      <Companies />
-      <NewsFeed title="Новости рынка" />
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'review', label: 'AI-обзор рынка' },
+          { value: 'companies', label: `Компании${members.data ? ` · ${members.data.length}` : ''}` },
+          { value: 'movers', label: 'Лидеры дня' },
+          { value: 'news', label: 'Новости' },
+        ]}
+      />
+      <div key={tab} className="animate-rise">
+        {tab === 'review' && <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />}
+        {tab === 'companies' && <Companies />}
+        {tab === 'movers' && <Movers />}
+        {tab === 'news' && <NewsFeed title="Новости рынка" />}
+      </div>
     </div>
   );
 }

@@ -3,9 +3,9 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import type { Signal } from '../api';
 import { pct } from '../format';
 
-export function Surface({ children, className = '', id }: { children: ReactNode; className?: string; id?: string }) {
+export function Surface({ children, className = '', id, title }: { children: ReactNode; className?: string; id?: string; title?: string }) {
   return (
-    <section id={id} className={`rounded-[18px] border border-line/70 bg-surface shadow-soft ${className}`}>
+    <section id={id} title={title} className={`rounded-[18px] border border-line/70 bg-surface shadow-soft ${className}`}>
       {children}
     </section>
   );

@@ -5,7 +5,7 @@ import { Link } from 'react-router';
 import { api, ApiError, type Operation } from '../api';
 import { TradeDialog } from '../components/TradeDialog';
 import { SandboxBadge } from '../components/TradeTicket';
-import { Button, Empty, ErrorText, Monogram, SectionHeader, Skeleton, Surface } from '../components/ui';
+import { Button, Empty, ErrorText, Monogram, SectionHeader, Skeleton, Surface, Tabs } from '../components/ui';
 import { dateTime, money, price } from '../format';
 
 // Distinct but calm shades for the allocation bar; cash is always the neutral last segment.
@@ -64,6 +64,7 @@ export function Portfolio() {
   const cancel = useMutation({ mutationFn: api.cancelOrder, onSuccess: refresh });
   // undefined: dialog closed; '': open with instrument picker; ticker: trade that instrument.
   const [trade, setTrade] = useState<string>();
+  const [tab, setTab] = useState<'positions' | 'orders' | 'operations' | 'payin'>('positions');
 
   if (status.data && !enabled) {
     return (
@@ -112,7 +113,7 @@ export function Portfolio() {
   const total = segments.reduce((a, s) => a + s.value, 0) || 1;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <SandboxBadge />
         <Button variant="up" className="ml-auto" onClick={() => setTrade('')}>
@@ -123,14 +124,14 @@ export function Portfolio() {
       <ErrorText error={pf.error} />
       {trade !== undefined && <TradeDialog secid={trade || undefined} onClose={() => setTrade(undefined)} />}
 
-      <Surface className="p-6 md:p-6">
+      <Surface className="p-5">
         {!p ? (
           <Skeleton className="h-40" />
         ) : (
           <>
             <div className="text-sm font-medium text-muted">Стоимость портфеля</div>
             <div className="mt-1 flex flex-wrap items-baseline gap-3">
-              <span className="text-4xl font-semibold tracking-[-0.025em] md:text-5xl">{money(p.total)}</span>
+              <span className="text-4xl font-semibold tracking-[-0.025em]">{money(p.total)}</span>
               {totalYield !== 0 && (
                 <span className={`text-lg font-semibold ${totalYield > 0 ? 'text-up' : 'text-down'}`}>
                   {totalYield > 0 ? '+' : ''}
@@ -138,7 +139,7 @@ export function Portfolio() {
                 </span>
               )}
             </div>
-            <div className="mt-8 flex h-3 overflow-hidden rounded-full bg-surface-2" role="img" aria-label="Распределение портфеля">
+            <div className="mt-5 flex h-2.5 overflow-hidden rounded-full bg-surface-2" role="img" aria-label="Распределение портфеля">
               {segments.map((s) => (
                 <span key={s.label} style={{ width: `${(s.value / total) * 100}%`, background: s.color }} title={`${s.label}: ${money(s.value)}`} />
               ))}
@@ -152,7 +153,7 @@ export function Portfolio() {
                 </li>
               ))}
             </ul>
-            <div className="mt-8 grid grid-cols-2 gap-4 border-t border-line/70 pt-6 sm:grid-cols-3">
+            <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line/70 pt-4 sm:grid-cols-3">
               <div>
                 <div className="text-xs font-medium text-muted">Свободные деньги</div>
                 <div className="mt-1 text-xl font-semibold">{money(p.availableCash)}</div>
@@ -172,8 +173,19 @@ export function Portfolio() {
         )}
       </Surface>
 
-      <Surface className="p-5 md:p-5">
-        <SectionHeader title="Бумаги" />
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'positions', label: `Бумаги${p?.positions.length ? ` · ${p.positions.length}` : ''}` },
+          { value: 'orders', label: `Заявки${orders.data?.length ? ` · ${orders.data.length}` : ''}` },
+          { value: 'operations', label: 'История' },
+          { value: 'payin', label: 'Пополнить' },
+        ]}
+      />
+
+      {tab === 'positions' && (
+      <Surface className="animate-rise p-5">
         {p?.positions.length === 0 && (
           <div className="flex flex-col items-center gap-3 py-8 text-center">
             <p className="text-sm text-muted">Пока ничего не куплено. Выберите бумагу и купите на виртуальные деньги.</p>
@@ -212,12 +224,14 @@ export function Portfolio() {
           ))}
         </ul>
       </Surface>
+      )}
 
-      {!!orders.data?.length && (
-        <Surface className="p-5 md:p-5">
+      {tab === 'orders' && (
+        <Surface className="animate-rise p-5">
           <SectionHeader title="Активные заявки" subtitle="Неисполненные заявки песочница снимает в конце торговой сессии" />
+          {orders.data?.length === 0 && <Empty>Активных заявок нет. Лимитные заявки ждут здесь, пока цена не дойдёт до указанной.</Empty>}
           <ul className="divide-y divide-line/70">
-            {orders.data.map((o) => (
+            {orders.data?.map((o) => (
               <li key={o.orderId} className="flex items-center gap-4 py-3">
                 <Monogram secid={o.secid} size="sm" />
                 <span className="flex-1 text-sm">
@@ -238,8 +252,8 @@ export function Portfolio() {
         </Surface>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <Surface className="p-5 md:p-5">
+      {tab === 'operations' && (
+        <Surface className="animate-rise p-5">
           <SectionHeader title="История операций" />
           {ops.data?.length === 0 && <Empty>Операций пока нет.</Empty>}
           <ul className="divide-y divide-line/70">
@@ -264,17 +278,17 @@ export function Portfolio() {
             ))}
           </ul>
         </Surface>
+      )}
 
-        {p && (
-          <Surface className="h-fit p-5 md:p-5">
-            <SectionHeader title="Пополнить" subtitle="Виртуальные рубли, лимит 30 млн ₽ всего" />
-            <AmountForm cta="Пополнить" onSubmit={(v) => payIn.mutate(v)} busy={payIn.isPending} initial="50000" />
-            <div className="mt-2">
-              <ErrorText error={payIn.error} />
-            </div>
-          </Surface>
-        )}
-      </div>
+      {tab === 'payin' && p && (
+        <Surface className="animate-rise p-5">
+          <SectionHeader title="Пополнить" subtitle="Виртуальные рубли, лимит 30 млн ₽ всего" />
+          <AmountForm cta="Пополнить" onSubmit={(v) => payIn.mutate(v)} busy={payIn.isPending} initial="50000" />
+          <div className="mt-2">
+            <ErrorText error={payIn.error} />
+          </div>
+        </Surface>
+      )}
     </div>
   );
 }
