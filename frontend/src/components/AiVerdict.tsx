@@ -131,6 +131,28 @@ export function AiVerdict({ secid, onLevels }: { secid: string; onLevels: (l?: L
 
           {open && (
             <div className="animate-rise space-y-5">
+              {(r.bull || r.bear) && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {r.bull && (
+                    <div className="rounded-2xl bg-up/8 p-4">
+                      <div className="mb-1 text-xs font-semibold text-up">Бык — за покупку</div>
+                      <p className="text-sm leading-relaxed text-ink-2">{r.bull}</p>
+                    </div>
+                  )}
+                  {r.bear && (
+                    <div className="rounded-2xl bg-down/8 p-4">
+                      <div className="mb-1 text-xs font-semibold text-down">Медведь — против</div>
+                      <p className="text-sm leading-relaxed text-ink-2">{r.bear}</p>
+                    </div>
+                  )}
+                  {r.verdictReason && (
+                    <p className="text-sm text-ink md:col-span-2">
+                      <span className="font-semibold">Решение судьи. </span>
+                      {r.verdictReason}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className="grid gap-5 md:grid-cols-2">
                 <Points title="За рост" items={r.bullish} tone="text-up" Icon={ArrowUpRight} />
                 <Points title="За падение" items={r.bearish} tone="text-down" Icon={ArrowDownRight} />

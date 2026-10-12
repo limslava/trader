@@ -55,6 +55,9 @@ export type AnalysisResult = {
   horizon: 'days' | 'weeks' | 'months';
   summary: string;
   simple?: string;
+  bull?: string;
+  bear?: string;
+  verdictReason?: string;
   trend: string;
   bullish: string[];
   bearish: string[];
@@ -130,6 +133,32 @@ export type Dividend = {
   regularity: string | null;
 };
 
+export type AnalystTarget = { company: string; recommendation: Signal; target: number | null; date: string | null };
+export type Forecast = {
+  consensus: { recommendation: Signal; target: number | null; min: number | null; max: number | null; upsidePct: number | null };
+  targets: AnalystTarget[];
+  counts: { buy: number; hold: number; sell: number };
+};
+export type InsiderDeal = { date: string | null; direction: 'buy' | 'sell'; quantity: number; price: number | null; who: string; position: string };
+
+export type Outcome = {
+  id: number;
+  secid: string;
+  shortname: string;
+  createdAt: string;
+  signal: Signal;
+  confidence: number;
+  price: number;
+  returns: Record<'7' | '30', number | null>;
+  hits: Record<'7' | '30', boolean | null>;
+  returnNow: number | null;
+};
+export type Scorecard = {
+  total: number;
+  bySignal: Record<Signal, Record<'7' | '30', { settled: number; hits: number; meanReturnPct: number | null }>>;
+  outcomes: Outcome[];
+};
+
 export type CompanyInfo =
   | { configured: false }
   | {
@@ -139,6 +168,8 @@ export type CompanyInfo =
       data: {
         fundamentals: Record<string, number | string | null> | null;
         dividends: { upcoming: Dividend[]; recent: Dividend[] };
+        forecast: Forecast | null;
+        insiders: InsiderDeal[];
       } | null;
     };
 
@@ -261,6 +292,7 @@ export const api = {
 
   aiStatus: () => request<{ configured: boolean; model: string }>('GET', '/analysis/status'),
   indicators: (secid: string) => request<Indicators>('GET', `/analysis/indicators/${enc(secid)}`),
+  scorecard: () => request<Scorecard>('GET', '/analysis/scorecard'),
   analyses: (secid?: string) => request<Analysis[]>('GET', `/analysis${secid ? `?secid=${enc(secid)}` : ''}`),
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),
   analyze: (secid: string, question?: string) => request<Analysis>('POST', `/analysis/${enc(secid)}`, { question }),

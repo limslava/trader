@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api, type Analysis } from '../api';
+import { ScorecardCard } from '../components/ScorecardCard';
 import { Empty, ErrorText, Monogram, SIGNAL_META, Skeleton, Surface } from '../components/ui';
 import { price } from '../format';
 
@@ -18,6 +19,7 @@ export function History() {
 
   return (
     <div className="space-y-5">
+      <ScorecardCard />
       <ErrorText error={error} />
       {isLoading && <Skeleton className="h-64 rounded-[18px]" />}
       {data?.length === 0 && (

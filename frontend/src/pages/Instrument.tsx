@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AiVerdict } from '../components/AiVerdict';
+import { Analysts } from '../components/Analysts';
 import { Dividends, KeyStats, NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { SandboxBadge, TradeTicket } from '../components/TradeTicket';
@@ -112,6 +113,7 @@ export function Instrument() {
           )}
           <AiVerdict secid={secid} onLevels={setLevels} />
           <KeyStats secid={secid} ind={indicators.data} />
+          <Analysts secid={secid} currentPrice={q?.price ?? null} />
           <Dividends secid={secid} />
           <NewsFeed secid={secid} title="Новости компании" />
         </div>

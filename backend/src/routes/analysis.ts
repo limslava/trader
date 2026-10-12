@@ -7,6 +7,7 @@ import { pool } from '../db.js';
 import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
+import { buildScorecard, pastCallsFor } from '../scorecard.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { daysAgo, getCandles, getQuote } from '../moex.js';
 import { secidSchema } from './market.js';
@@ -53,6 +54,11 @@ analysisRouter.get('/indicators/:secid', async (req, res) => {
   res.json(computeIndicators(await getCandles(secid, 24, daysAgo(400))));
 });
 
+/** How past verdicts fared against real prices. */
+analysisRouter.get('/scorecard', async (_req, res) => {
+  res.json(await buildScorecard());
+});
+
 analysisRouter.get('/', async (req, res) => {
   const { secid, limit } = z
     .object({ secid: secidSchema.optional(), limit: z.coerce.number().int().min(1).max(200).default(50) })
@@ -84,14 +90,21 @@ analysisRouter.post('/:secid', async (req, res) => {
   const [quote, daily] = await Promise.all([getQuote(secid), getCandles(secid, 24, daysAgo(400))]);
   if (daily.length < 30) throw new HttpError(422, 'Слишком мало истории торгов для анализа');
   const indicators = computeIndicators(daily);
-  const [market, news, company] = await Promise.all([
+  const [market, news, company, pastCalls] = await Promise.all([
     getMarketContext(),
     getNewsSafe(newsQueryFor(secid, quote.name), 14, 12),
     getCompanyData(secid),
+    pastCallsFor(secid, daily),
   ]);
   const relative = await relativeToIndex(secid, indicators, market);
   const result = await guarded(`analysis:${secid}`, () =>
-    analyze(quote, indicators, daily, { market, relative, news: headlines(news), company: companyForPrompt(company) }, question || undefined),
+    analyze(
+      quote,
+      indicators,
+      daily,
+      { market, relative, news: headlines(news), company: companyForPrompt(company), pastCalls },
+      question || undefined,
+    ),
   );
 
   const { rows } = await pool.query<Row>(

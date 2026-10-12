@@ -179,9 +179,69 @@ export function getFundamentals(secid: string): Promise<Fundamentals | null> {
   });
 }
 
+export type AnalystTarget = { company: string; recommendation: 'BUY' | 'HOLD' | 'SELL'; target: number | null; date: string | null };
+export type Forecast = {
+  consensus: { recommendation: 'BUY' | 'HOLD' | 'SELL'; target: number | null; min: number | null; max: number | null; upsidePct: number | null };
+  targets: AnalystTarget[];
+  counts: { buy: number; hold: number; sell: number };
+};
+export type InsiderDeal = { date: string | null; direction: 'buy' | 'sell'; quantity: number; price: number | null; who: string; position: string };
+
+const rec = (s?: string): 'BUY' | 'HOLD' | 'SELL' => (s?.endsWith('SELL') ? 'SELL' : s?.endsWith('HOLD') ? 'HOLD' : 'BUY');
+const forecastCache = new TtlCache<Forecast | null>(6 * 60 * 60_000);
+const insiderCache = new TtlCache<InsiderDeal[]>(6 * 60 * 60_000);
+
+/** Brokerage-house targets and T-Invest's consensus; null when nobody covers the instrument. */
+export function getForecast(secid: string): Promise<Forecast | null> {
+  return forecastCache.get(secid, async () => {
+    const { uid } = await getInstrument(secid);
+    type RawTarget = { company?: string; recommendation?: string; targetPrice?: Quotation; recommendationDate?: string };
+    type RawConsensus = { recommendation?: string; consensus?: Quotation; minTarget?: Quotation; maxTarget?: Quotation; priceChangeRel?: Quotation };
+    const d = await call<{ targets?: RawTarget[]; consensus?: RawConsensus }>('InstrumentsService/GetForecastBy', { instrumentId: uid });
+    if (!d.targets?.length || !d.consensus) return null;
+    const targets = d.targets
+      .map((t) => ({ company: t.company ?? '', recommendation: rec(t.recommendation), target: q(t.targetPrice), date: day(t.recommendationDate) }))
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    const counts = { buy: 0, hold: 0, sell: 0 };
+    for (const t of targets) counts[t.recommendation.toLowerCase() as keyof typeof counts]++;
+    return {
+      consensus: {
+        recommendation: rec(d.consensus.recommendation),
+        target: q(d.consensus.consensus),
+        min: q(d.consensus.minTarget),
+        max: q(d.consensus.maxTarget),
+        upsidePct: q(d.consensus.priceChangeRel),
+      },
+      targets,
+      counts,
+    };
+  });
+}
+
+/** Insider trades disclosed by the issuer, newest first. */
+export function getInsiderDeals(secid: string): Promise<InsiderDeal[]> {
+  return insiderCache.get(secid, async () => {
+    const { uid } = await getInstrument(secid);
+    type Raw = { date?: string; direction?: string; quantity?: string; price?: Quotation; investorName?: string; investorPosition?: string };
+    const { insiderDeals = [] } = await call<{ insiderDeals?: Raw[] }>('InstrumentsService/GetInsiderDeals', { instrumentId: uid, limit: 20 });
+    return insiderDeals
+      .map((x) => ({
+        date: day(x.date),
+        direction: (x.direction?.endsWith('SELL') ? 'sell' : 'buy') as 'buy' | 'sell',
+        quantity: Number(x.quantity ?? 0),
+        price: q(x.price),
+        who: x.investorName ?? '',
+        position: x.investorPosition ?? '',
+      }))
+      .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  });
+}
+
 export type CompanyData = {
   fundamentals: Fundamentals | null;
   dividends: { upcoming: Dividend[]; recent: Dividend[] };
+  forecast: Forecast | null;
+  insiders: InsiderDeal[];
 };
 
 
@@ -189,7 +249,13 @@ export type CompanyData = {
 export async function getCompanyData(secid: string): Promise<CompanyData | null> {
   if (!tinkoffConfigured()) return null;
   try {
-    const [fundamentals, dividends] = await Promise.all([getFundamentals(secid), getDividends(secid)]);
+    // Each source fails independently; forecasts/insiders are extras and must not hide fundamentals.
+    const [fundamentals, dividends, forecast, insiders] = await Promise.all([
+      getFundamentals(secid),
+      getDividends(secid),
+      getForecast(secid).catch(() => null),
+      getInsiderDeals(secid).catch(() => []),
+    ]);
     const t = todayMsk();
     return {
       fundamentals,
@@ -197,6 +263,8 @@ export async function getCompanyData(secid: string): Promise<CompanyData | null>
         upcoming: dividends.filter((d) => (d.recordDate ?? '') >= t).reverse(),
         recent: dividends.filter((d) => (d.recordDate ?? '') < t).slice(0, 4),
       },
+      forecast,
+      insiders,
     };
   } catch (err) {
     console.warn(`Company data for ${secid} unavailable:`, err instanceof Error ? err.message : err);
@@ -237,6 +305,19 @@ export function companyForPrompt(data: CompanyData | null) {
     },
     upcomingDividends: data.dividends.upcoming.map(div),
     recentDividends: data.dividends.recent.map(div),
+    analystConsensus: data.forecast && {
+      recommendation: data.forecast.consensus.recommendation,
+      targetPriceRub: data.forecast.consensus.target,
+      targetRangeRub: [data.forecast.consensus.min, data.forecast.consensus.max],
+      upsidePct: data.forecast.consensus.upsidePct,
+      houses: data.forecast.counts,
+      latest: data.forecast.targets.slice(0, 5).map((t) => `${t.company}: ${t.recommendation} ${t.target ?? '?'} ₽ (${t.date})`),
+    },
+    // Only recent insider activity is informative; a 2020 trade is noise.
+    insiderDealsLast12m: data.insiders
+      .filter((d) => (d.date ?? '') >= new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10))
+      .slice(0, 8)
+      .map((d) => `${d.date}: ${d.direction === 'buy' ? 'покупка' : 'продажа'} ${d.quantity} шт. по ${d.price ?? '?'} ₽ — ${d.position}`),
   };
 }
 

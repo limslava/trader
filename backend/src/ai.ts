@@ -20,6 +20,9 @@ export const analysisResultSchema = z.object({
   horizon: z.enum(['days', 'weeks', 'months']).catch('weeks'),
   summary: z.string().min(1),
   simple: z.string().default(''),
+  bull: z.string().default(''),
+  bear: z.string().default(''),
+  verdictReason: z.string().default(''),
   trend: z.string().default(''),
   bullish: strings,
   bearish: strings,
@@ -51,12 +54,15 @@ const COMMON_RULES = `Пользователь — начинающий част
 - Давай чёткий вывод, а не «с одной стороны, с другой стороны»: стоит ли присматриваться к покупке, держать или лучше обойти — и почему. Решение принимает пользователь, твоя задача — дать ему ясный разбор данных.
 - Не обещай доходность и не призывай вкладывать все деньги в одну бумагу.
 - Пиши по-русски, кратко. Не используй названия полей из данных (change3mPct, sma200, vsImoex1yPct) — пиши по-человечески: «за 3 месяца», «200-дневная средняя», «отстаёт от индекса за год».
+- Прогнозы аналитиков (company.analystConsensus): консенсус брокерских домов и целевая цена. Это мнения, а не факты — учитывай, но не копируй: если целевая цена далеко выше текущей, спроси себя, почему рынок с этим не согласен. Сделки инсайдеров (company.insiderDealsLast12m): покупки менеджмента на свои деньги — сильный плюс; продажи могут быть и плановыми.
 - Поле simple — объяснение для новичка без терминов (никаких RSI, MACD, SMA, P/E): что сейчас происходит с ценой, что это значит и на что обратить внимание. 3-4 простых предложения.`;
 
-const SYSTEM_PROMPT = `Ты — аналитик российского фондового рынка. Делаешь технический разбор одной бумаги.
+const SYSTEM_PROMPT = `Ты — аналитик российского фондового рынка. Делаешь разбор одной бумаги.
 
 ${COMMON_RULES}
 - Уровни поддержки/сопротивления бери из реальных экстремумов и скользящих средних в данных.
+- Метод: сначала честно сыграй две роли. «Бык» — лучший аргумент ЗА покупку, со ссылками на цифры. «Медведь» — лучший аргумент ПРОТИВ, тоже с цифрами. Затем как судья решай, чья позиция сильнее и почему, — это и есть вердикт. Поля bull/bear — это их речи (по 2-4 предложения), verdictReason — одно предложение, почему судья выбрал эту сторону.
+- Если в pastCalls есть твои прошлые вердикты по этой бумаге с результатом — учти их: что сработало, что нет, и не повторяй ту же ошибку.
 
 Ответ — строго JSON-объект без markdown:
 {
@@ -65,6 +71,9 @@ ${COMMON_RULES}
   "horizon": "days" | "weeks" | "months",
   "summary": "2-3 предложения: главный вывод (можно с терминами)",
   "simple": "простыми словами для новичка",
+  "bull": "речь быка: лучший аргумент за покупку",
+  "bear": "речь медведя: лучший аргумент против",
+  "verdictReason": "почему судья выбрал эту сторону",
   "trend": "одно предложение о текущем тренде",
   "bullish": ["аргументы за рост"],
   "bearish": ["аргументы за падение"],
@@ -83,6 +92,8 @@ export type AnalysisContext = {
   relative: Record<string, unknown>;
   news: string[];
   company: unknown;
+  /** Earlier verdicts on this instrument with how the price moved since — the model learns from its own record. */
+  pastCalls?: unknown;
 };
 
 function buildUserPrompt(
@@ -106,6 +117,7 @@ function buildUserPrompt(
     marketContext: ctx.market,
     company: ctx.company,
     news: ctx.news,
+    pastCalls: ctx.pastCalls ?? null,
     dailyCandles: { columns: ['date', 'open', 'high', 'low', 'close', 'turnoverRub'], rows: recent },
     userQuestion: question || null,
   });
