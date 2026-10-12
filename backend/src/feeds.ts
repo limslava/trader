@@ -112,7 +112,7 @@ export function matchTickers(title: string): string[] {
   return TICKER_PATTERNS.filter(([, re]) => re.test(title)).map(([s]) => s);
 }
 
-type Raw = { url: string; title: string; source: string; publishedAt: string };
+type Raw = { url: string; title: string; source: string; publishedAt: string; summary: string | null };
 
 async function fetchFeed(f: { source: string; url: string }): Promise<Raw[]> {
   const res = await fetch(f.url, { headers: { 'User-Agent': 'Mozilla/5.0 (Trader personal app)' }, signal: AbortSignal.timeout(15_000) });
@@ -124,7 +124,8 @@ async function fetchFeed(f: { source: string; url: string }): Promise<Raw[]> {
     const url = decode(tag(block, 'link') ?? '').trim();
     const pub = new Date(decode(tag(block, 'pubDate') ?? ''));
     if (!title || !url || Number.isNaN(pub.getTime())) continue;
-    out.push({ url, title, source: f.source, publishedAt: pub.toISOString() });
+    const summary = decode(tag(block, 'description') ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1500) || null;
+    out.push({ url, title, source: f.source, publishedAt: pub.toISOString(), summary });
   }
   return out;
 }
@@ -149,9 +150,9 @@ export function refreshFeeds(): Promise<number> {
       let inserted = 0;
       for (const r of relevant) {
         const res = await pool.query(
-          `INSERT INTO news_items (url, title, source, published_at, tickers, market, event)
-           VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (url) DO NOTHING`,
-          [r.url, r.title, r.source, r.publishedAt, r.tickers, r.market, r.event],
+          `INSERT INTO news_items (url, title, source, published_at, tickers, market, event, summary)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (url) DO UPDATE SET summary = COALESCE(news_items.summary, EXCLUDED.summary)`,
+          [r.url, r.title, r.source, r.publishedAt, r.tickers, r.market, r.event, r.summary],
         );
         inserted += res.rowCount ?? 0;
       }

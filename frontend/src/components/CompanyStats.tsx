@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { api, type Dividend, type Indicators } from '../api';
 import { NewsChips } from './NewsChips';
 import { ScoreBreakdown } from './ScoreBadge';
+import { useWindows } from './Windows';
 import { date, dateTime, money, pct, price } from '../format';
 import { Delta, Empty, ErrorText, SectionHeader, Skeleton, Stat, Surface } from './ui';
 
@@ -210,6 +211,7 @@ export function Dividends({ secid }: { secid: string }) {
 }
 
 export function NewsFeed({ secid, title = 'Новости', limit = 8, action }: { secid?: string; title?: string; limit?: number; action?: ReactNode }) {
+  const { open } = useWindows();
   const { data, isLoading, error } = useQuery({
     queryKey: ['news', secid ?? 'market'],
     queryFn: () => (secid ? api.news(secid) : api.marketNews()),
@@ -224,7 +226,15 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
       <ul className="divide-y divide-line/70">
         {data?.slice(0, limit).map((n) => (
           <li key={n.url}>
-            <a href={n.url} target="_blank" rel="noreferrer noopener" className="group flex gap-3 py-3">
+            <a
+              href={n.url}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey) return; // let power users open a real tab
+                e.preventDefault();
+                open(n.url, n.title);
+              }}
+              className="group flex w-full gap-3 py-3 text-left"
+            >
               <span className="min-w-0 flex-1">
                 <span className="block text-sm leading-snug font-medium group-hover:underline">
                   <NewsChips n={n} />
@@ -235,7 +245,7 @@ export function NewsFeed({ secid, title = 'Новости', limit = 8, action }:
                   {n.publishedAt && ` · ${dateTime(n.publishedAt)}`}
                 </span>
               </span>
-              <ExternalLink className="mt-1 size-4 shrink-0 text-muted opacity-0 transition group-hover:opacity-100" aria-hidden />
+              <ExternalLink className="mt-1 size-4 shrink-0 text-muted opacity-0 transition group-hover:opacity-100" aria-label="Читать в окне" />
             </a>
           </li>
         ))}

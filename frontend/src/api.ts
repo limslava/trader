@@ -300,6 +300,16 @@ export type Operation = {
 
 export type OrderInput = { secid: string; direction: 'buy' | 'sell'; lots: number; type: 'market' | 'limit'; price?: number };
 
+export type Article = {
+  url: string;
+  title: string;
+  siteName: string | null;
+  byline: string | null;
+  paragraphs: string[];
+  fallback: boolean;
+  summary: string | null;
+};
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; sector: string; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -345,6 +355,7 @@ export const api = {
   sparklines: (secids: string[]) =>
     request<Record<string, number[]>>('GET', `/market/sparklines?secids=${secids.map(enc).join(',')}`),
   events: () => request<NewsItem[]>('GET', '/market/events'),
+  article: (url: string) => request<Article>('GET', `/news/article?url=${enc(url)}`),
   marketNews: () => request<NewsItem[]>('GET', '/market/news'),
   news: (secid: string) => request<NewsItem[]>('GET', `/market/news/${enc(secid)}`),
   candles: (secid: string, interval: number, from: string) =>

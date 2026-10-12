@@ -8,6 +8,7 @@ import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
 import { Screener } from '../components/Screener';
 import { NewsChips } from '../components/NewsChips';
+import { useWindows } from '../components/Windows';
 import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Button, Delta, Empty, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
@@ -177,6 +178,7 @@ function Companies() {
 
 function UrgentEvents() {
   const { data } = useQuery({ queryKey: ['events'], queryFn: api.events, staleTime: 10 * 60_000 });
+  const { open } = useWindows();
   if (!data?.length) return null;
   return (
     <Surface className="p-5">
@@ -191,7 +193,15 @@ function UrgentEvents() {
                 </Link>
               ))}
             </span>
-            <a href={n.url} target="_blank" rel="noreferrer noopener" className="min-w-0 flex-1 text-sm leading-snug hover:underline">
+            <a
+              href={n.url}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey) return;
+                e.preventDefault();
+                open(n.url, n.title);
+              }}
+              className="min-w-0 flex-1 text-sm leading-snug hover:underline"
+            >
               <NewsChips n={n} />
               {n.title}
               <span className="block text-xs text-muted">

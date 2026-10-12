@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { api, ApiError, setUnauthorizedHandler } from './api';
 import { Layout } from './components/Layout';
+import { WindowProvider } from './components/Windows';
 import { Spinner } from './components/ui';
 import './index.css';
 import { History } from './pages/History';
@@ -64,7 +65,9 @@ createRoot(document.getElementById('root')!).render(
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
-          <App />
+          <WindowProvider>
+            <App />
+          </WindowProvider>
         </BrowserRouter>
       </QueryClientProvider>
     </ThemeProvider>
