@@ -118,7 +118,10 @@ export type MarketContext = {
   } | null;
   keyRate: { pct: number; date: string } | null;
   usdRub: { rate: number; date: string } | null;
+  ofz: { y1: OfzPoint | null; y3: OfzPoint | null; y5: OfzPoint | null } | null;
 };
+
+export type OfzPoint = { secid: string; name: string; maturity: string; yieldPct: number };
 
 export type NewsItem = { title: string; source: string; url: string; publishedAt: string };
 
@@ -165,6 +168,20 @@ export type CalendarItem = Dividend & {
   held: number;
   expectedPayoutRub: number | null;
   source: ('watchlist' | 'portfolio')[];
+};
+
+export type Pillar = { score: number; drivers: string[] };
+export type Score = { total: number; label: 'strong' | 'neutral' | 'weak'; tech: Pillar; relative: Pillar; fundamental: Pillar | null };
+export type ScreenerRow = { secid: string; shortname: string; weight: number; price: number | null; changePct: number; score: Score };
+export type Backtest = {
+  horizonDays: number;
+  dates: number;
+  observations: number;
+  strong: { n: number; hitRatePct: number | null; meanReturnPct: number | null };
+  weak: { n: number; hitRatePct: number | null; meanReturnPct: number | null };
+  neutral: { n: number; meanReturnPct: number | null };
+  spreadPct: number | null;
+  spreadWinRatePct: number | null;
 };
 
 export type CompanyInfo =
@@ -304,6 +321,9 @@ export const api = {
   digestStatus: () => request<{ configured: boolean }>('GET', '/digest/status'),
   digestPreview: () => request<{ text: string }>('GET', '/digest/preview'),
   digestSend: () => request('POST', '/digest/send'),
+  screener: () => request<ScreenerRow[]>('GET', '/screener'),
+  score: (secid: string) => request<Score>('GET', `/screener/${enc(secid)}`),
+  backtest: (horizon: 10 | 20 | 60) => request<Backtest>('GET', `/screener/backtest?horizon=${horizon}`),
   scorecard: () => request<Scorecard>('GET', '/analysis/scorecard'),
   analyses: (secid?: string) => request<Analysis[]>('GET', `/analysis${secid ? `?secid=${enc(secid)}` : ''}`),
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),

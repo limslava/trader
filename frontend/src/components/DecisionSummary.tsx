@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { CalendarClock, ShieldAlert, Sparkles, Users } from 'lucide-react';
+import { CalendarClock, Gauge, ShieldAlert, Sparkles, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { api } from '../api';
 import { date, dateTime, price } from '../format';
+import { SCORE_META } from './ScoreBadge';
 import { ConfidenceRing, SIGNAL_META, Skeleton, Surface } from './ui';
 
 function Row({ Icon, label, children, onClick }: { Icon: typeof Users; label: string; children: ReactNode; onClick?: () => void }) {
@@ -29,6 +30,7 @@ function Row({ Icon, label, children, onClick }: { Icon: typeof Users; label: st
 export function DecisionSummary({ secid, currentPrice, onTab }: { secid: string; currentPrice: number | null; onTab: (tab: string) => void }) {
   const history = useQuery({ queryKey: ['analyses', secid], queryFn: () => api.analyses(secid) });
   const company = useQuery({ queryKey: ['company', secid], queryFn: () => api.company(secid), staleTime: 60 * 60_000 });
+  const score = useQuery({ queryKey: ['score', secid], queryFn: () => api.score(secid), staleTime: 15 * 60_000 });
 
   const a = history.data?.[0];
   const data = company.data?.configured ? company.data.data : null;
@@ -66,6 +68,22 @@ export function DecisionSummary({ secid, currentPrice, onTab }: { secid: string;
           </button>
 
           <div className="divide-y divide-line/70 md:border-l md:border-line/70 md:pl-4">
+            <Row Icon={Gauge} label="Оценка" onClick={() => onTab('stats')}>
+              {score.data ? (
+                <>
+                  <b className={SCORE_META[score.data.label].tone}>
+                    {score.data.total} · {SCORE_META[score.data.label].label.toLowerCase()}
+                  </b>
+                  <span className="text-muted">
+                    {' '}
+                    · тренд {score.data.tech.score} · vs индекс {score.data.relative.score}
+                    {score.data.fundamental && ` · фундаментал ${score.data.fundamental.score}`}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted">считаю…</span>
+              )}
+            </Row>
             <Row Icon={Users} label="Аналитики" onClick={() => onTab('analysts')}>
               {f ? (
                 <>

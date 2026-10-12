@@ -8,6 +8,8 @@ import { HttpError } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
 import { buildScorecard, pastCallsFor } from '../scorecard.js';
+import { computeScore } from '../scoring.js';
+import { backtest } from './screener.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { daysAgo, getCandles, getQuote } from '../moex.js';
 import { secidSchema } from './market.js';
@@ -97,12 +99,19 @@ analysisRouter.post('/:secid', async (req, res) => {
     pastCallsFor(secid, daily),
   ]);
   const relative = await relativeToIndex(secid, indicators, market);
+  const score = computeScore(indicators, relative, company?.fundamentals ?? null);
+  // Tell the model how well the momentum part of the score has actually predicted returns lately.
+  const validation = await Promise.all([backtest(20), backtest(60)]).then(([b20, b60]) => ({
+    note: 'Проверка технической части quantScore на бумагах индекса за последний год (без заглядывания в будущее)',
+    horizon20d: { strongHitRatePct: b20.strong.hitRatePct, strongMeanReturnPct: b20.strong.meanReturnPct, weakMeanReturnPct: b20.weak.meanReturnPct, topMinusBottomPct: b20.spreadPct },
+    horizon60d: { strongHitRatePct: b60.strong.hitRatePct, strongMeanReturnPct: b60.strong.meanReturnPct, weakMeanReturnPct: b60.weak.meanReturnPct, topMinusBottomPct: b60.spreadPct },
+  })).catch(() => null);
   const result = await guarded(`analysis:${secid}`, () =>
     analyze(
       quote,
       indicators,
       daily,
-      { market, relative, news: headlines(news), company: companyForPrompt(company), pastCalls },
+      { market, relative, news: headlines(news), company: companyForPrompt(company), pastCalls, score: { ...score, validation } },
       question || undefined,
     ),
   );

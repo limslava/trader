@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarClock, ExternalLink } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { api, type Dividend, type Indicators } from '../api';
+import { ScoreBreakdown } from './ScoreBadge';
 import { date, dateTime, money, price } from '../format';
 import { Delta, Empty, ErrorText, SectionHeader, Skeleton, Stat, Surface } from './ui';
 
@@ -64,12 +65,27 @@ function rsiText(v: number | null) {
 
 export function KeyStats({ secid, ind }: { secid: string; ind?: Indicators }) {
   const company = useCompany(secid);
+  const score = useQuery({ queryKey: ['score', secid], queryFn: () => api.score(secid), staleTime: 15 * 60_000 });
+  const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
   const f = company.data?.configured ? company.data.data?.fundamentals : null;
   const fields = KEY_FIELDS.filter(([k]) => f?.[k] != null);
 
   return (
     <Surface className="p-5 md:p-5">
       <SectionHeader title="Ключевые показатели" subtitle={f ? 'Отчётность за последние 12 месяцев' : undefined} />
+      {score.data && (
+        <div className="mb-5 rounded-2xl bg-surface-2/60 p-4">
+          <ScoreBreakdown score={score.data} />
+        </div>
+      )}
+      {f?.dividendYieldDailyTtm != null && ctx.data?.ofz?.y1 && (
+        <p className="mb-4 rounded-2xl bg-surface-2 px-4 py-3 text-sm">
+          <span className="font-semibold">Сравните с безрисковой альтернативой:</span> дивиденды за год{' '}
+          <b>{price(f.dividendYieldDailyTtm as number, 1)}%</b> против ОФЗ на 1 год <b>{price(ctx.data.ofz.y1.yieldPct, 1)}%</b>
+          {ctx.data.keyRate && <> и вклада ≈ <b>{price(ctx.data.keyRate.pct, 1)}%</b></>}. Акция должна давать больше с учётом
+          роста цены — иначе риск не окупается.
+        </p>
+      )}
       {company.isLoading && <Skeleton className="h-24" />}
       {fields.length > 0 && (
         <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">

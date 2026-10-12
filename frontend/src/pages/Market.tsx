@@ -6,6 +6,7 @@ import { api, type ImoexMember } from '../api';
 import { NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
 import { ReviewCard } from '../components/ReviewCard';
+import { Screener } from '../components/Screener';
 import { TradeDialog } from '../components/TradeDialog';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Button, Delta, Empty, ErrorText, Monogram, SectionHeader, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
@@ -173,7 +174,7 @@ function Companies() {
   );
 }
 
-type MarketTab = 'review' | 'companies' | 'movers' | 'news';
+type MarketTab = 'review' | 'screener' | 'companies' | 'movers' | 'news';
 
 export function Market() {
   const [tab, setTab] = useState<MarketTab>('review');
@@ -194,7 +195,7 @@ export function Market() {
             <PriceChart secid="IMOEX" fill />
           </div>
         </Surface>
-        <div className="grid grid-cols-3 gap-3 lg:grid-cols-1">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
           {[
             {
               label: 'Ключевая ставка ЦБ',
@@ -205,6 +206,11 @@ export function Market() {
               label: 'Доллар, курс ЦБ',
               value: ctx.data?.usdRub ? `${price(ctx.data.usdRub.rate)} ₽` : '—',
               hint: 'Слабый рубль выгоден экспортёрам (нефть, газ, металлы), сильный — компаниям внутри страны.',
+            },
+            {
+              label: 'ОФЗ на 1 год',
+              value: ctx.data?.ofz?.y1 ? `${price(ctx.data.ofz.y1.yieldPct, 1)}%` : '—',
+              hint: `Безрисковая доходность гособлигаций: ${ctx.data?.ofz?.y3 ? `на 3 года ${price(ctx.data.ofz.y3.yieldPct, 1)}%, ` : ''}${ctx.data?.ofz?.y5 ? `на 5 лет ${price(ctx.data.ofz.y5.yieldPct, 1)}%` : ''}. Акции должны обещать больше.`,
             },
             {
               label: 'Индекс за год',
@@ -228,6 +234,7 @@ export function Market() {
         onChange={setTab}
         options={[
           { value: 'review', label: 'AI-обзор рынка' },
+          { value: 'screener', label: 'Скринер' },
           { value: 'companies', label: `Компании${members.data ? ` · ${members.data.length}` : ''}` },
           { value: 'movers', label: 'Лидеры дня' },
           { value: 'news', label: 'Новости' },
@@ -235,6 +242,7 @@ export function Market() {
       />
       <div key={tab} className="animate-rise">
         {tab === 'review' && <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />}
+        {tab === 'screener' && <Screener />}
         {tab === 'companies' && <Companies />}
         {tab === 'movers' && <Movers />}
         {tab === 'news' && <NewsFeed title="Новости рынка" />}

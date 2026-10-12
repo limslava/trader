@@ -1,4 +1,5 @@
 import { TtlCache } from './http.js';
+import { getOfzYields, type OfzYields } from './ofz.js';
 import { computeIndicators, type IndicatorSnapshot } from './indicators.js';
 import { daysAgo, getCandles, getIndexComposition, INDEX_SECID } from './moex.js';
 
@@ -15,6 +16,8 @@ export type MarketContext = {
   } | null;
   keyRate: { pct: number; date: string } | null;
   usdRub: { rate: number; date: string } | null;
+  /** Risk-free alternative: fixed-coupon OFZ yields by horizon. */
+  ofz: OfzYields | null;
 };
 
 const CBR = 'https://www.cbr.ru';
@@ -50,8 +53,8 @@ export async function getImoexIndicators(): Promise<IndicatorSnapshot> {
 /** Each source fails independently: a CBR outage must not break analysis. */
 export function getMarketContext(): Promise<MarketContext> {
   return cache.get('ctx', async () => {
-    const [imoex, keyRate, usdRub] = await Promise.allSettled([getImoexIndicators(), getKeyRate(), getUsdRub()]);
-    for (const r of [imoex, keyRate, usdRub]) if (r.status === 'rejected') console.warn('Market context:', r.reason);
+    const [imoex, keyRate, usdRub, ofz] = await Promise.allSettled([getImoexIndicators(), getKeyRate(), getUsdRub(), getOfzYields()]);
+    for (const r of [imoex, keyRate, usdRub, ofz]) if (r.status === 'rejected') console.warn('Market context:', r.reason);
     const ind = imoex.status === 'fulfilled' ? imoex.value : null;
     return {
       imoex: ind && {
@@ -66,6 +69,7 @@ export function getMarketContext(): Promise<MarketContext> {
       },
       keyRate: keyRate.status === 'fulfilled' ? keyRate.value : null,
       usdRub: usdRub.status === 'fulfilled' ? usdRub.value : null,
+      ofz: ofz.status === 'fulfilled' ? ofz.value : null,
     };
   });
 }
