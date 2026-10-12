@@ -9,11 +9,12 @@ import { computeIndicators } from '../indicators.js';
 import { daysAgo, getCandles, getIndexComposition, getQuotes } from '../moex.js';
 import { getNewsSafe, headlines, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
+import { portfolio as getPortfolio } from '../trading.js';
 
 export const reviewRouter = Router();
 
 const MAX_WATCHLIST_ITEMS = 30;
-const scopeSchema = z.enum(['watchlist', 'imoex']);
+const scopeSchema = z.enum(['watchlist', 'imoex', 'portfolio']);
 
 type Row = {
   id: number;
@@ -64,6 +65,11 @@ reviewRouter.delete('/:id', async (req, res) => {
 
 async function scopeSecids(scope: ReviewScope): Promise<string[]> {
   if (scope === 'imoex') return (await getIndexComposition()).map((m) => m.secid);
+  if (scope === 'portfolio') {
+    const pf = await getPortfolio();
+    if (pf.positions.length === 0) throw new HttpError(422, 'В портфеле пока нет бумаг');
+    return pf.positions.map((p) => p.secid);
+  }
   const { rows } = await pool.query<{ secid: string }>('SELECT secid FROM watchlist ORDER BY added_at');
   if (rows.length === 0) throw new HttpError(422, 'Вотчлист пуст — добавьте бумаги');
   if (rows.length > MAX_WATCHLIST_ITEMS) throw new HttpError(422, `Для обзора максимум ${MAX_WATCHLIST_ITEMS} бумаг в вотчлисте`);
@@ -72,8 +78,17 @@ async function scopeSecids(scope: ReviewScope): Promise<string[]> {
 
 /** Gathers data and calls the model; can take 1–3 minutes for the whole index, so it runs detached from the request. */
 async function runReview(id: number, scope: ReviewScope, secids: string[]) {
-  const [quoteList, market, marketNews] = await Promise.all([getQuotes(secids), getMarketContext(), getNewsSafe(MARKET_NEWS_QUERY, 7, 15)]);
+  const [quoteList, market, marketNews, pf] = await Promise.all([
+    getQuotes(secids),
+    getMarketContext(),
+    getNewsSafe(MARKET_NEWS_QUERY, 7, 15),
+    scope === 'portfolio' ? getPortfolio() : null,
+  ]);
   const quotes = new Map(quoteList.map((q) => [q.secid, q]));
+  const holdings = new Map(pf?.positions.map((p) => [p.secid, p]));
+  const summary = pf
+    ? { totalRub: pf.total ?? 0, cashRub: pf.cash, cashPct: pf.total ? Number(((pf.cash / pf.total) * 100).toFixed(1)) : 0, positions: pf.positions.length }
+    : undefined;
 
   // Fetch history in small batches to stay polite with MOEX ISS.
   const inputs: ReviewInput[] = [];
@@ -93,8 +108,13 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
           relativeToIndex: await relativeToIndex(secid, indicators, market),
           // The index review covers ~45 instruments; keep the prompt compact and use market news only.
           recentCloses: daily.slice(scope === 'imoex' ? -5 : -20).map((c) => c.close),
-          news: scope === 'watchlist' ? headlines(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4)) : undefined,
+          news: scope !== 'imoex' ? headlines(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4)) : undefined,
           company: companyForPrompt(await getCompanyData(secid)),
+          holding: (() => {
+            const h = holdings.get(secid);
+            if (!h || !pf?.total) return undefined;
+            return { quantity: h.quantity, valueRub: h.value ?? 0, weightPct: Number((((h.value ?? 0) / pf.total) * 100).toFixed(1)), pnlRub: h.expectedYield };
+          })(),
         };
       }),
     );
@@ -102,7 +122,7 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
   }
   if (inputs.length === 0) throw new HttpError(422, 'Недостаточно истории торгов для обзора');
 
-  const result = await reviewInstruments(scope, inputs, market, headlines(marketNews));
+  const result = await reviewInstruments(scope, inputs, market, headlines(marketNews), summary);
   const snapshot = inputs.map(({ secid, name, price, changeTodayPct, indicators }) => ({ secid, name, price, changeTodayPct, indicators }));
   await pool.query(`UPDATE reviews SET status = 'done', secids = $2, result = $3, snapshot = $4, news = $5 WHERE id = $1`, [
     id,

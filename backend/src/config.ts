@@ -20,6 +20,10 @@ const schema = z.object({
   // true: sandbox contour (needs a Sandbox token); false: production (read-only or full-access token).
   TINKOFF_SANDBOX: z.enum(['true', 'false']).default('true'),
 
+  // Optional weekly digest to Telegram (bot from @BotFather, chat id of your own chat with it).
+  TELEGRAM_BOT_TOKEN: z.string().default(''),
+  TELEGRAM_CHAT_ID: z.string().default(''),
+
   MOEX_ISS_URL: z.string().url().default('https://iss.moex.com/iss'),
   STATIC_DIR: z.string().optional(),
 });

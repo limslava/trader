@@ -83,7 +83,7 @@ export type Analysis = {
 
 export type ReviewPick = { secid: string; reason: string };
 
-export type ReviewScope = 'watchlist' | 'imoex';
+export type ReviewScope = 'watchlist' | 'imoex' | 'portfolio';
 
 export type Review = {
   id: number;
@@ -157,6 +157,14 @@ export type Scorecard = {
   total: number;
   bySignal: Record<Signal, Record<'7' | '30', { settled: number; hits: number; meanReturnPct: number | null }>>;
   outcomes: Outcome[];
+};
+
+export type CalendarItem = Dividend & {
+  secid: string;
+  shortname: string;
+  held: number;
+  expectedPayoutRub: number | null;
+  source: ('watchlist' | 'portfolio')[];
 };
 
 export type CompanyInfo =
@@ -292,6 +300,10 @@ export const api = {
 
   aiStatus: () => request<{ configured: boolean; model: string }>('GET', '/analysis/status'),
   indicators: (secid: string) => request<Indicators>('GET', `/analysis/indicators/${enc(secid)}`),
+  dividendCalendar: () => request<{ upcoming: CalendarItem[]; recent: CalendarItem[] }>('GET', '/calendar/dividends'),
+  digestStatus: () => request<{ configured: boolean }>('GET', '/digest/status'),
+  digestPreview: () => request<{ text: string }>('GET', '/digest/preview'),
+  digestSend: () => request('POST', '/digest/send'),
   scorecard: () => request<Scorecard>('GET', '/analysis/scorecard'),
   analyses: (secid?: string) => request<Analysis[]>('GET', `/analysis${secid ? `?secid=${enc(secid)}` : ''}`),
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),

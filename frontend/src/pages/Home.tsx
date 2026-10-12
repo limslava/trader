@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ChevronDown, Plus, Sparkles, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../api';
+import { DigestCard } from '../components/DigestCard';
+import { DividendCalendar } from '../components/DividendCalendar';
 import { ReviewCard } from '../components/ReviewCard';
 import { Sparkline, useSparklines } from '../components/Sparkline';
 import { Delta, Monogram, SectionHeader, SIGNAL_META, Skeleton, Surface } from '../components/ui';
@@ -204,6 +206,7 @@ export function Home() {
       </div>
       <AiIdea />
       <Watchlist />
+      <DividendCalendar compact />
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-muted hover:text-ink">
           <ChevronDown className="size-4 transition group-open:rotate-180" aria-hidden />
@@ -213,6 +216,7 @@ export function Home() {
           <ReviewCard scope="watchlist" canRun={!!ai.data?.configured} count={wl.data?.length ?? 0} />
         </div>
       </details>
+      <DigestCard />
     </div>
   );
 }

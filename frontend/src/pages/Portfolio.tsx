@@ -3,6 +3,8 @@ import { ArrowDownLeft, ArrowUpRight, Percent, Plus, Wallet, X } from 'lucide-re
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, type Operation } from '../api';
+import { DividendCalendar } from '../components/DividendCalendar';
+import { ReviewCard } from '../components/ReviewCard';
 import { TradeDialog } from '../components/TradeDialog';
 import { SandboxBadge } from '../components/TradeTicket';
 import { Button, Empty, ErrorText, Monogram, SectionHeader, Skeleton, Surface, Tabs } from '../components/ui';
@@ -64,7 +66,8 @@ export function Portfolio() {
   const cancel = useMutation({ mutationFn: api.cancelOrder, onSuccess: refresh });
   // undefined: dialog closed; '': open with instrument picker; ticker: trade that instrument.
   const [trade, setTrade] = useState<string>();
-  const [tab, setTab] = useState<'positions' | 'orders' | 'operations' | 'payin'>('positions');
+  const [tab, setTab] = useState<'positions' | 'review' | 'dividends' | 'orders' | 'operations' | 'payin'>('positions');
+  const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
 
   if (status.data && !enabled) {
     return (
@@ -178,6 +181,8 @@ export function Portfolio() {
         onChange={setTab}
         options={[
           { value: 'positions', label: `Бумаги${p?.positions.length ? ` · ${p.positions.length}` : ''}` },
+          { value: 'review', label: 'AI-разбор' },
+          { value: 'dividends', label: 'Дивиденды' },
           { value: 'orders', label: `Заявки${orders.data?.length ? ` · ${orders.data.length}` : ''}` },
           { value: 'operations', label: 'История' },
           { value: 'payin', label: 'Пополнить' },
@@ -225,6 +230,9 @@ export function Portfolio() {
         </ul>
       </Surface>
       )}
+
+      {tab === 'review' && <ReviewCard scope="portfolio" canRun={!!ai.data?.configured} count={p?.positions.length ?? 0} />}
+      {tab === 'dividends' && <DividendCalendar />}
 
       {tab === 'orders' && (
         <Surface className="animate-rise p-5">

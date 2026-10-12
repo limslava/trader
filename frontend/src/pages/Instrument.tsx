@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AiVerdict } from '../components/AiVerdict';
 import { DecisionSummary } from '../components/DecisionSummary';
+import { Freshness } from '../components/Freshness';
 import { Analysts } from '../components/Analysts';
 import { Dividends, KeyStats, NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
@@ -99,7 +100,7 @@ export function Instrument() {
                 <span className="text-4xl font-semibold tracking-[-0.025em]">{price(q.price, q.decimals)}</span>
                 <span className="text-xl font-medium text-muted">₽</span>
                 <Delta value={q.changePct} size="lg" suffix="сегодня" />
-                {q.updateTime && <span className="text-xs text-muted">· {q.updateTime} МСК</span>}
+                <Freshness updateTime={q.updateTime} />
               </div>
             ) : (
               <Skeleton className="mb-3 h-12 w-64" />

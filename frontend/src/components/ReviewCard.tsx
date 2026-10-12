@@ -18,6 +18,11 @@ const COPY: Record<ReviewScope, { title: string; empty: string; running: string 
       'AI разберёт все компании индекса Мосбиржи с учётом ставки ЦБ, курса рубля, отчётности и новостей: что происходит на рынке, кто сильнее, кого лучше обойти. Занимает 1–2 минуты.',
     running: 'Анализирую рынок…',
   },
+  portfolio: {
+    title: 'AI-разбор портфеля',
+    empty: 'AI посмотрит на портфель целиком: перекосы, доля денег, что сократить и что добавить для баланса — с учётом ваших реальных позиций.',
+    running: 'Разбираю портфель…',
+  },
 };
 
 function Picks({ title, picks, tone }: { title: string; picks: ReviewPick[]; tone: 'up' | 'down' }) {
@@ -144,8 +149,8 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
               {review.result.market && <p className="text-sm leading-relaxed text-muted">{review.result.market}</p>}
             </div>
             <div className="grid content-start gap-3 md:grid-cols-2 xl:grid-cols-1">
-              <Picks title="Сильнее всего" picks={review.result.top} tone="up" />
-              <Picks title="Слабее всего" picks={review.result.avoid} tone="down" />
+              <Picks title={scope === 'portfolio' ? 'Докупать / держать' : 'Сильнее всего'} picks={review.result.top} tone="up" />
+              <Picks title={scope === 'portfolio' ? 'Сократить' : 'Слабее всего'} picks={review.result.avoid} tone="down" />
             </div>
           </div>
 

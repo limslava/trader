@@ -8,7 +8,9 @@ import { authRouter, requireAuth } from './auth.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { HttpError } from './http.js';
+import { buildDigest, sendTelegram, telegramConfigured } from './digest.js';
 import { analysisRouter } from './routes/analysis.js';
+import { calendarRouter } from './routes/calendar.js';
 import { marketRouter } from './routes/market.js';
 import { reviewRouter } from './routes/review.js';
 import { tradingRouter } from './routes/trading.js';
@@ -34,6 +36,13 @@ export function createApp() {
   app.use('/api/analysis', requireAuth, analysisRouter);
   app.use('/api/review', requireAuth, reviewRouter);
   app.use('/api/trading', requireAuth, tradingRouter);
+  app.use('/api/calendar', requireAuth, calendarRouter);
+  app.get('/api/digest/status', requireAuth, (_req, res) => res.json({ configured: telegramConfigured() }));
+  app.get('/api/digest/preview', requireAuth, async (_req, res) => res.json({ text: await buildDigest() }));
+  app.post('/api/digest/send', requireAuth, async (_req, res) => {
+    await sendTelegram(await buildDigest());
+    res.json({ ok: true });
+  });
   app.use('/api', (_req, _res) => {
     throw new HttpError(404, 'Not found');
   });

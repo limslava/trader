@@ -217,7 +217,7 @@ export const reviewResultSchema = z.object({
 });
 
 export type ReviewResult = z.infer<typeof reviewResultSchema>;
-export type ReviewScope = 'watchlist' | 'imoex';
+export type ReviewScope = 'watchlist' | 'imoex' | 'portfolio';
 
 export type ReviewInput = {
   secid: string;
@@ -229,12 +229,18 @@ export type ReviewInput = {
   recentCloses: number[];
   news?: string[];
   company?: unknown;
+  /** Only for portfolio reviews: what the user actually holds. */
+  holding?: { quantity: number; valueRub: number; weightPct: number; pnlRub: number | null };
 };
+
+export type PortfolioSummary = { totalRub: number; cashRub: number; cashPct: number; positions: number };
 
 const SCOPE_INTRO: Record<ReviewScope, string> = {
   watchlist: 'Делаешь сравнительный технический обзор вотчлиста (списка бумаг, за которыми следит пользователь).',
   imoex:
     'Делаешь обзор российского рынка акций по бумагам индекса Мосбиржи (голубые фишки) для новичка, который не знает, с чего начать. Объясни, что сейчас происходит на рынке в целом, какие бумаги технически сильнее и слабее. Комментарии по бумагам — одно короткое предложение.',
+  portfolio:
+    'Делаешь разбор ПОРТФЕЛЯ новичка (portfolioSummary + holding у каждой бумаги). Главное — не отдельные бумаги, а портфель целиком: концентрация (одна бумага > 30% — это риск), доля денег (много кэша при ставке 14% — не страшно, но без цели — упущенная доходность), отраслевые перекосы (всё в нефти или всё в банках), что стоит сократить, что добавить для баланса, и как это сделать постепенно. В summary и simple говори именно про портфель. В items — вердикт по каждой позиции с учётом её доли: «держать», «сократить» (SELL) или «докупать» (BUY). В top — что докупать/добавить из уже имеющегося, в avoid — что сократить.',
 };
 
 function reviewPrompt(scope: ReviewScope) {
@@ -263,10 +269,11 @@ export async function reviewInstruments(
   inputs: ReviewInput[],
   market: MarketContext,
   marketNews: string[],
+  portfolioSummary?: PortfolioSummary,
 ): Promise<ReviewResult> {
   const result = await askJson(
     reviewPrompt(scope),
-    JSON.stringify({ marketContext: market, marketNews, instruments: inputs }),
+    JSON.stringify({ marketContext: market, marketNews, portfolioSummary: portfolioSummary ?? null, instruments: inputs }),
     reviewResultSchema,
   );
   // Keep only instruments we actually sent, in input order, one entry each.
