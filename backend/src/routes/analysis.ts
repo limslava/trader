@@ -13,7 +13,8 @@ import { computeScore } from '../scoring.js';
 import { backtest, screener } from './screener.js';
 import { SECTOR_RU, sectorOf } from '../tinkoff.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
-import { daysAgo, getCandles, getQuote } from '../moex.js';
+import { daysAgo, getCandles, getQuote, INDEX_SECID } from '../moex.js';
+import { riskStats } from '../risk.js';
 import { secidSchema } from './market.js';
 
 export const analysisRouter = Router();
@@ -56,6 +57,13 @@ analysisRouter.get('/status', (_req, res) => {
 analysisRouter.get('/indicators/:secid', async (req, res) => {
   const secid = secidSchema.parse(req.params.secid);
   res.json(computeIndicators(await getCandles(secid, 24, daysAgo(400))));
+});
+
+/** Beta, max drawdown and worst day over the last year. */
+analysisRouter.get('/risk/:secid', async (req, res) => {
+  const secid = secidSchema.parse(req.params.secid);
+  const [daily, index] = await Promise.all([getCandles(secid, 24, daysAgo(400)), getCandles(INDEX_SECID, 24, daysAgo(400))]);
+  res.json(riskStats(daily, index));
 });
 
 /** How past verdicts fared against real prices. */
@@ -104,6 +112,7 @@ analysisRouter.post('/:secid', async (req, res) => {
   const relative = await relativeToIndex(secid, indicators, market);
   const score = computeScore(indicators, relative, company?.fundamentals ?? null);
   const sector = await sectorOf(secid, quote.name);
+  const risk = riskStats(daily, await getCandles(INDEX_SECID, 24, daysAgo(400)));
   const sectorPeers = await screener()
     .then((rows) => {
       const peers = rows.filter((r) => r.sector === sector && r.secid !== secid);
@@ -133,7 +142,7 @@ analysisRouter.post('/:secid', async (req, res) => {
       quote,
       indicators,
       daily,
-      { market, relative, news: headlines(news), company: { ...(companyForPrompt(company) ?? {}), sector: SECTOR_RU[sector] ?? sector }, pastCalls, score: { ...score, validation }, sectorPeers },
+      { market, relative, news: headlines(news), company: { ...(companyForPrompt(company) ?? {}), sector: SECTOR_RU[sector] ?? sector }, pastCalls, score: { ...score, validation }, sectorPeers, risk },
       question || undefined,
     ),
   );

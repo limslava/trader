@@ -119,7 +119,10 @@ export type MarketContext = {
   keyRate: { pct: number; date: string } | null;
   usdRub: { rate: number; date: string } | null;
   ofz: { y1: OfzPoint | null; y3: OfzPoint | null; y5: OfzPoint | null } | null;
+  regime: { trend: 'uptrend' | 'recovery' | 'correction' | 'downtrend' | 'sideways'; volatility: 'low' | 'normal' | 'high'; label: string; reasons: string[] } | null;
 };
+
+export type RiskStats = { beta: number | null; maxDrawdownPct: number | null; worstDayPct: number | null; bestDayPct: number | null; days: number };
 
 export type OfzPoint = { secid: string; name: string; maturity: string; yieldPct: number };
 
@@ -362,6 +365,7 @@ export const api = {
   peers: (secid: string) => request<{ sector: string | null; peers: ScreenerRow[] }>('GET', `/screener/peers/${enc(secid)}`),
   score: (secid: string) => request<Score>('GET', `/screener/${enc(secid)}`),
   backtest: (horizon: 10 | 20 | 60) => request<Backtest>('GET', `/screener/backtest?horizon=${horizon}`),
+  risk: (secid: string) => request<RiskStats>('GET', `/analysis/risk/${enc(secid)}`),
   scorecard: () => request<Scorecard>('GET', '/analysis/scorecard'),
   analyses: (secid?: string) => request<Analysis[]>('GET', `/analysis${secid ? `?secid=${enc(secid)}` : ''}`),
   analysis: (id: number) => request<Analysis>('GET', `/analysis/${id}`),

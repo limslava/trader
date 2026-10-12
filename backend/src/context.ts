@@ -18,7 +18,48 @@ export type MarketContext = {
   usdRub: { rate: number; date: string } | null;
   /** Risk-free alternative: fixed-coupon OFZ yields by horizon. */
   ofz: OfzYields | null;
+  /** Deterministic read of the index: trend phase and volatility level, with the reasons. */
+  regime: Regime | null;
 };
+
+export type Regime = { trend: 'uptrend' | 'recovery' | 'correction' | 'downtrend' | 'sideways'; volatility: 'low' | 'normal' | 'high'; label: string; reasons: string[] };
+
+export function regimeOf(ind: IndicatorSnapshot): Regime {
+  const c = ind.close ?? 0;
+  const above200 = ind.sma200 != null && c > ind.sma200;
+  const above50 = ind.sma50 != null && c > ind.sma50;
+  const m1 = ind.change1mPct ?? 0;
+  const m3 = ind.change3mPct ?? 0;
+  const reasons: string[] = [];
+  let trend: Regime['trend'];
+  if (above200 && above50 && m3 > 0) {
+    trend = 'uptrend';
+    reasons.push('индекс выше 50- и 200-дневных средних, за 3 месяца растёт');
+  } else if (!above200 && above50 && m1 > 0) {
+    trend = 'recovery';
+    reasons.push('индекс отскочил выше 50-дневной, но всё ещё ниже 200-дневной средней');
+  } else if (above200 && !above50) {
+    trend = 'correction';
+    reasons.push('индекс ниже 50-дневной средней при долгосрочном росте');
+  } else if (!above200 && !above50 && m3 < 0) {
+    trend = 'downtrend';
+    reasons.push('индекс ниже обеих средних и падает 3 месяца');
+  } else {
+    trend = 'sideways';
+    reasons.push('нет выраженного направления');
+  }
+  const vol = ind.volatility20dPct ?? 0;
+  const volatility: Regime['volatility'] = vol >= 30 ? 'high' : vol <= 15 ? 'low' : 'normal';
+  reasons.push(`волатильность ${vol.toFixed(0)}% годовых — ${volatility === 'high' ? 'высокая, резкие движения' : volatility === 'low' ? 'низкая, спокойный рынок' : 'обычная'}`);
+  const names: Record<Regime['trend'], string> = {
+    uptrend: 'Рост',
+    recovery: 'Восстановление',
+    correction: 'Коррекция',
+    downtrend: 'Падение',
+    sideways: 'Боковик',
+  };
+  return { trend, volatility, label: `${names[trend]}${volatility === 'high' ? ', нервный рынок' : volatility === 'low' ? ', спокойный рынок' : ''}`, reasons };
+}
 
 const CBR = 'https://www.cbr.ru';
 const cache = new TtlCache<MarketContext>(30 * 60_000);
@@ -70,6 +111,7 @@ export function getMarketContext(): Promise<MarketContext> {
       keyRate: keyRate.status === 'fulfilled' ? keyRate.value : null,
       usdRub: usdRub.status === 'fulfilled' ? usdRub.value : null,
       ofz: ofz.status === 'fulfilled' ? ofz.value : null,
+      regime: ind ? regimeOf(ind) : null,
     };
   });
 }

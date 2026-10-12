@@ -169,6 +169,10 @@ export function TradeTicket({ secid }: { secid: string }) {
           : null;
 
   const input: OrderInput = { secid, direction, lots, type, price: type === 'limit' ? unitPrice : undefined };
+  // Beginners' rule of thumb: no single stock above ~15% of the portfolio.
+  const total = pf.data?.total ?? 0;
+  const heldValue = held?.value ?? 0;
+  const shareAfter = total && direction === 'buy' ? ((heldValue + amount) / total) * 100 : null;
 
   return (
     <div className="space-y-4">
@@ -248,6 +252,12 @@ export function TradeTicket({ secid }: { secid: string }) {
       </div>
 
       {problem && <p className="text-sm leading-snug text-hold">{problem}</p>}
+      {!problem && shareAfter != null && (
+        <p className={`text-xs leading-snug ${shareAfter > 15 ? 'text-hold' : 'text-muted'}`}>
+          После покупки {secid} займёт {price(shareAfter, 0)}% портфеля.
+          {shareAfter > 15 && ' Для новичка разумно держать не больше 10–15% в одной бумаге — так одна неудача не испортит весь результат.'}
+        </p>
+      )}
       <ErrorText error={place.error} />
 
       <Button

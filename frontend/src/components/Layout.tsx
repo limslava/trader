@@ -37,6 +37,12 @@ function MarketStrip() {
           </span>
         </div>
       )}
+      {data.regime && (
+        <div className="flex items-baseline gap-2" title={data.regime.reasons.join('; ')}>
+          <span className="text-muted">Рынок</span>
+          <span className="font-semibold">{data.regime.label}</span>
+        </div>
+      )}
       {data.keyRate && (
         <div className="flex items-baseline gap-2">
           <span className="text-muted">Ставка ЦБ</span>

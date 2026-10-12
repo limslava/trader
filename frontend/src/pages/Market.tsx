@@ -229,6 +229,11 @@ export function Market() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
           {[
             {
+              label: 'Режим рынка',
+              value: ctx.data?.regime?.label ?? '—',
+              hint: ctx.data?.regime ? ctx.data.regime.reasons.join('. ') + '.' : 'Определяется по положению индекса относительно средних и волатильности.',
+            },
+            {
               label: 'Ключевая ставка ЦБ',
               value: ctx.data?.keyRate ? `${price(ctx.data.keyRate.pct)}%` : '—',
               hint: 'Примерно столько дают вклады. Акции должны приносить больше — иначе проще вклад. Снижение ставки обычно помогает акциям.',

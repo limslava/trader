@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { api, type Dividend, type Indicators } from '../api';
 import { NewsChips } from './NewsChips';
 import { ScoreBreakdown } from './ScoreBadge';
-import { date, dateTime, money, price } from '../format';
+import { date, dateTime, money, pct, price } from '../format';
 import { Delta, Empty, ErrorText, SectionHeader, Skeleton, Stat, Surface } from './ui';
 
 function useCompany(secid: string) {
@@ -68,6 +68,7 @@ export function KeyStats({ secid, ind }: { secid: string; ind?: Indicators }) {
   const company = useCompany(secid);
   const score = useQuery({ queryKey: ['score', secid], queryFn: () => api.score(secid), staleTime: 15 * 60_000 });
   const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
+  const risk = useQuery({ queryKey: ['risk', secid], queryFn: () => api.risk(secid), staleTime: 60 * 60_000 });
   const f = company.data?.configured ? company.data.data?.fundamentals : null;
   const fields = KEY_FIELDS.filter(([k]) => f?.[k] != null);
 
@@ -123,6 +124,25 @@ export function KeyStats({ secid, ind }: { secid: string; ind?: Indicators }) {
             <Stat label="Дневной размах" value={`${price(ind.atr14)} ₽`} hint="ATR: на сколько бумага обычно двигается за день" />
             <Stat label="Оборот в день" value={money(ind.turnover20dAvgRub)} hint="Средний за 20 дней" />
           </div>
+          {risk.data && risk.data.maxDrawdownPct != null && (
+            <div className="rounded-2xl bg-surface-2 p-4">
+              <div className="mb-3 text-xs font-semibold text-muted">Насколько «тряско» держать эту бумагу (за год)</div>
+              <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+                <Stat
+                  label="Худшая просадка"
+                  value={<span className="text-down">{pct(risk.data.maxDrawdownPct)}</span>}
+                  hint="Максимальное падение от пика до дна за последний год. Столько вы могли бы временно потерять, купив на пике."
+                />
+                <Stat label="Худший день" value={<span className="text-down">{pct(risk.data.worstDayPct)}</span>} hint="Самое сильное падение за один день" />
+                <Stat label="Лучший день" value={<span className="text-up">{pct(risk.data.bestDayPct)}</span>} hint="Самый сильный рост за один день" />
+                <Stat
+                  label="Бета к индексу"
+                  value={risk.data.beta != null ? `${price(risk.data.beta, 2)}×` : '—'}
+                  hint="Насколько бумага повторяет движения индекса: 1 — как рынок, 1,5 — в полтора раза сильнее, 0,5 — вдвое спокойнее"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </Surface>
