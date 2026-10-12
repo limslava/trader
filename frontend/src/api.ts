@@ -181,7 +181,32 @@ export type CalendarItem = Dividend & {
 
 export type Pillar = { score: number; drivers: string[] };
 export type Score = { total: number; label: 'strong' | 'neutral' | 'weak'; tech: Pillar; relative: Pillar; fundamental: Pillar | null };
-export type ScreenerRow = { secid: string; shortname: string; weight: number; price: number | null; changePct: number; score: Score };
+export type ScreenerRow = {
+  secid: string;
+  shortname: string;
+  weight: number;
+  price: number | null;
+  changePct: number;
+  sector: string;
+  score: Score;
+  ratios: { pe: number | null; dividendYieldPct: number | null; roePct: number | null; change3mPct: number | null };
+};
+export type SectorWeight = { sector: string; weightPct: number; members: string[] };
+
+export const SECTOR_RU: Record<string, string> = {
+  energy: 'Нефть и газ',
+  financial: 'Финансы',
+  materials: 'Металлы и сырьё',
+  it: 'Технологии',
+  consumer: 'Потребительский сектор',
+  telecom: 'Телеком',
+  utilities: 'Электроэнергетика',
+  industrials: 'Промышленность',
+  health_care: 'Здравоохранение',
+  real_estate: 'Недвижимость',
+  fund: 'Фонды',
+  other: 'Прочее',
+};
 export type Backtest = {
   horizonDays: number;
   dates: number;
@@ -210,6 +235,7 @@ export type CompanyInfo =
 export type Position = {
   secid: string;
   name: string;
+  sector: string;
   quantity: number;
   lots: number;
   blockedLots: number;
@@ -271,7 +297,7 @@ export type Operation = {
 
 export type OrderInput = { secid: string; direction: 'buy' | 'sell'; lots: number; type: 'market' | 'limit'; price?: number };
 
-export type ImoexMember = { secid: string; shortname: string; weight: number; quote: Quote | null };
+export type ImoexMember = { secid: string; shortname: string; weight: number; sector: string; quote: Quote | null };
 
 export class ApiError extends Error {
   constructor(
@@ -332,6 +358,8 @@ export const api = {
   digestPreview: () => request<{ text: string }>('GET', '/digest/preview'),
   digestSend: () => request('POST', '/digest/send'),
   screener: () => request<ScreenerRow[]>('GET', '/screener'),
+  sectors: () => request<SectorWeight[]>('GET', '/screener/sectors'),
+  peers: (secid: string) => request<{ sector: string | null; peers: ScreenerRow[] }>('GET', `/screener/peers/${enc(secid)}`),
   score: (secid: string) => request<Score>('GET', `/screener/${enc(secid)}`),
   backtest: (horizon: 10 | 20 | 60) => request<Backtest>('GET', `/screener/backtest?horizon=${horizon}`),
   scorecard: () => request<Scorecard>('GET', '/analysis/scorecard'),

@@ -4,7 +4,7 @@ import { HttpError, TtlCache } from '../http.js';
 import { computeIndicators } from '../indicators.js';
 import { daysAgo, getCandles, getIndexComposition, getQuotes, INDEX_SECID, type Candle } from '../moex.js';
 import { computeScore, quantScore, type Score } from '../scoring.js';
-import { getCompanyData } from '../tinkoff.js';
+import { getCompanyData, getSectors, type Fundamentals } from '../tinkoff.js';
 import { secidSchema } from './market.js';
 
 export const screenerRouter = Router();
@@ -15,7 +15,10 @@ export type ScreenerRow = {
   weight: number;
   price: number | null;
   changePct: number;
+  sector: string;
   score: Score;
+  /** A few ratios for peer tables; null for funds. */
+  ratios: { pe: number | null; dividendYieldPct: number | null; roePct: number | null; change3mPct: number | null };
 };
 
 const screenerCache = new TtlCache<ScreenerRow[]>(15 * 60_000);
@@ -23,7 +26,7 @@ const screenerCache = new TtlCache<ScreenerRow[]>(15 * 60_000);
 /** Scores every IMOEX member; fundamentals come from T-Invest (cached 6 h there). */
 export function screener(): Promise<ScreenerRow[]> {
   return screenerCache.get('imoex', async () => {
-    const [members, market] = await Promise.all([getIndexComposition(), getMarketContext()]);
+    const [members, market, sectors] = await Promise.all([getIndexComposition(), getMarketContext(), getSectors().catch(() => new Map<string, string>())]);
     const quotes = new Map((await getQuotes(members.map((m) => m.secid))).map((q) => [q.secid, q]));
     const rows: ScreenerRow[] = [];
     for (let i = 0; i < members.length; i += 5) {
@@ -34,13 +37,17 @@ export function screener(): Promise<ScreenerRow[]> {
           const ind = computeIndicators(daily);
           const [rel, company] = await Promise.all([relativeToIndex(m.secid, ind, market), getCompanyData(m.secid)]);
           const q = quotes.get(m.secid);
+          const f: Fundamentals | null = company?.fundamentals ?? null;
+          const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
           rows.push({
             secid: m.secid,
             shortname: m.shortname,
             weight: m.weight,
             price: q?.price ?? null,
             changePct: q?.changePct ?? 0,
-            score: computeScore(ind, rel, company?.fundamentals ?? null),
+            sector: sectors.get(m.secid) ?? 'other',
+            score: computeScore(ind, rel, f),
+            ratios: { pe: num(f?.peRatioTtm), dividendYieldPct: num(f?.dividendYieldDailyTtm), roePct: num(f?.roe), change3mPct: ind.change3mPct },
           });
         }),
       );
@@ -147,6 +154,28 @@ export function backtest(HORIZON: (typeof HORIZONS)[number] = 20): Promise<Backt
 }
 
 screenerRouter.get('/', async (_req, res) => res.json(await screener()));
+
+/** Sector weights of the index and the members in each sector. */
+screenerRouter.get('/sectors', async (_req, res) => {
+  const rows = await screener();
+  const bySector = new Map<string, { weightPct: number; members: string[] }>();
+  for (const r of rows) {
+    const s = bySector.get(r.sector) ?? { weightPct: 0, members: [] };
+    s.weightPct += r.weight;
+    s.members.push(r.secid);
+    bySector.set(r.sector, s);
+  }
+  res.json([...bySector].map(([sector, v]) => ({ sector, weightPct: Number(v.weightPct.toFixed(2)), members: v.members })).sort((a, b) => b.weightPct - a.weightPct));
+});
+
+/** The instrument and its sector peers from the index, ranked by score. */
+screenerRouter.get('/peers/:secid', async (req, res) => {
+  const secid = secidSchema.parse(req.params.secid);
+  const rows = await screener();
+  const me = rows.find((r) => r.secid === secid);
+  if (!me) return void res.json({ sector: null, peers: [] });
+  res.json({ sector: me.sector, peers: rows.filter((r) => r.sector === me.sector) });
+});
 screenerRouter.get('/backtest', async (req, res) => {
   const h = Number(req.query.horizon);
   res.json(await backtest((HORIZONS as readonly number[]).includes(h) ? (h as 10 | 20 | 60) : 20));

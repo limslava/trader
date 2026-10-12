@@ -5,6 +5,7 @@ import { Link } from 'react-router';
 import { api, ApiError, type Operation } from '../api';
 import { DividendCalendar } from '../components/DividendCalendar';
 import { ReviewCard } from '../components/ReviewCard';
+import { SectorBar } from '../components/SectorBar';
 import { TradeDialog } from '../components/TradeDialog';
 import { SandboxBadge } from '../components/TradeTicket';
 import { Button, Empty, ErrorText, Monogram, SectionHeader, Skeleton, Surface, Tabs } from '../components/ui';
@@ -156,6 +157,9 @@ export function Portfolio() {
                 </li>
               ))}
             </ul>
+            <div className="mt-5 border-t border-line/70 pt-4">
+              <SectorBar positions={p.positions} cash={p.cash} total={p.total ?? 0} />
+            </div>
             <div className="mt-5 grid grid-cols-2 gap-4 border-t border-line/70 pt-4 sm:grid-cols-3">
               <div>
                 <div className="text-xs font-medium text-muted">Свободные деньги</div>

@@ -359,3 +359,40 @@ export async function withLivePrices<T extends LiveQuote & { secid: string }>(qu
     return quotes;
   }
 }
+
+// --- Sectors -------------------------------------------------------------------------------------------
+
+export const SECTOR_RU: Record<string, string> = {
+  energy: 'Нефть и газ',
+  financial: 'Финансы',
+  materials: 'Металлы и сырьё',
+  it: 'Технологии',
+  consumer: 'Потребительский сектор',
+  telecom: 'Телеком',
+  utilities: 'Электроэнергетика',
+  industrials: 'Промышленность',
+  health_care: 'Здравоохранение',
+  real_estate: 'Недвижимость',
+  fund: 'Фонды',
+  other: 'Прочее',
+};
+
+const sectorCache = new TtlCache<Map<string, string>>(24 * 60 * 60_000);
+
+/** Ticker → sector for every share on the main board (one call, cached a day). */
+export function getSectors(): Promise<Map<string, string>> {
+  return sectorCache.get('tqbr', async () => {
+    const { instruments = [] } = await call<{ instruments?: { ticker: string; classCode: string; sector?: string }[] }>(
+      'InstrumentsService/Shares',
+      { instrumentStatus: 'INSTRUMENT_STATUS_BASE' },
+    );
+    return new Map(instruments.filter((i) => i.classCode === 'TQBR').map((i) => [i.ticker, i.sector || 'other']));
+  });
+}
+
+/** Sector key for one ticker; funds and unknowns are labelled explicitly. */
+export async function sectorOf(secid: string, name = ''): Promise<string> {
+  if (/^БПИФ|ETF/i.test(name)) return 'fund';
+  if (!tinkoffConfigured()) return 'other';
+  return (await getSectors().catch(() => new Map<string, string>())).get(secid) ?? 'other';
+}

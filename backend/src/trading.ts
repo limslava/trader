@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { pool } from './db.js';
 import { HttpError, KeyedLock, TtlCache } from './http.js';
-import { call, isSandbox, q, tinkoffConfigured } from './tinkoff.js';
+import { call, isSandbox, q, sectorOf, tinkoffConfigured } from './tinkoff.js';
 
 /**
  * Paper trading in the T-Invest sandbox. Uses the regular Users/Operations/Orders methods against the sandbox host
@@ -169,9 +169,11 @@ export async function portfolio() {
         const currentPrice = q(pos.currentPrice);
         const avg = q(pos.averagePositionPrice);
         const value = currentPrice !== null ? currentPrice * quantity : null;
+        const secid = pos.ticker ?? inst?.ticker ?? pos.instrumentUid;
         return {
-          secid: pos.ticker ?? inst?.ticker ?? pos.instrumentUid,
+          secid,
           name: inst?.name ?? '',
+          sector: pos.instrumentType === 'etf' ? 'fund' : await sectorOf(secid, inst?.name),
           quantity,
           lots: q(pos.quantityLots) ?? 0,
           blockedLots: q(pos.blockedLots) ?? 0,

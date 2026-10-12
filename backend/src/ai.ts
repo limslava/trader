@@ -54,6 +54,7 @@ const COMMON_RULES = `Пользователь — начинающий част
 - Давай чёткий вывод, а не «с одной стороны, с другой стороны»: стоит ли присматриваться к покупке, держать или лучше обойти — и почему. Решение принимает пользователь, твоя задача — дать ему ясный разбор данных.
 - Не обещай доходность и не призывай вкладывать все деньги в одну бумагу.
 - Пиши по-русски, кратко. Не используй названия полей из данных (change3mPct, sma200, vsImoex1yPct) — пиши по-человечески: «за 3 месяца», «200-дневная средняя», «отстаёт от индекса за год».
+- Отрасли: у бумаги есть sector, у портфеля — sectorWeightsPct против indexSectorWeightsPct. Если одна отрасль занимает заметно больше, чем в индексе (например, 70% в нефти и газе против 40%), это риск концентрации — назови его. sectorPeers (у анализа одной бумаги) — соседи по отрасли: сравни P/E, дивиденды и оценку с ними и скажи, дешевле или дороже бумага своих аналогов.
 - Безрисковая альтернатива (marketContext.ofz — доходности ОФЗ на 1/3/5 лет, marketContext.keyRate — ставка ЦБ ≈ вклад). Всегда сопоставляй: дивидендная доходность + разумный потенциал роста должны заметно превышать ОФЗ, иначе честно скажи, что для новичка облигации/вклад — не хуже. Называй конкретные проценты.
 - quantScore — детерминированная оценка 0–100 (тренд, сила относительно индекса, фундаментал) с перечнем причин и quantScore.validation — как техническая часть этой оценки предсказывала доходность за последний год. Если validation показывает, что высокий счёт НЕ предсказывал рост (hit rate около 50% или ниже, отрицательный topMinusBottom), не делай вывод «тренд продолжится» — в такой фазе рынка сильно выросшие бумаги чаще откатывались. Опирайся на фундаментал, дивиденды и уровни, а тренд используй как описание, а не как прогноз. Не пересчитывай счёт.
 - Прогнозы аналитиков (company.analystConsensus): консенсус брокерских домов и целевая цена. Это мнения, а не факты — учитывай, но не копируй: если целевая цена далеко выше текущей, спроси себя, почему рынок с этим не согласен. Сделки инсайдеров (company.insiderDealsLast12m): покупки менеджмента на свои деньги — сильный плюс; продажи могут быть и плановыми.
@@ -98,6 +99,7 @@ export type AnalysisContext = {
   pastCalls?: unknown;
   /** Deterministic 0–100 score with its drivers. */
   score?: unknown;
+  sectorPeers?: unknown;
 };
 
 function buildUserPrompt(
@@ -122,6 +124,7 @@ function buildUserPrompt(
     company: ctx.company,
     news: ctx.news,
     quantScore: ctx.score ?? null,
+    sectorPeers: ctx.sectorPeers ?? null,
     pastCalls: ctx.pastCalls ?? null,
     dailyCandles: { columns: ['date', 'open', 'high', 'low', 'close', 'turnoverRub'], rows: recent },
     userQuestion: question || null,
@@ -249,9 +252,18 @@ export type ReviewInput = {
   company?: unknown;
   /** Only for portfolio reviews: what the user actually holds. */
   holding?: { quantity: number; valueRub: number; weightPct: number; pnlRub: number | null };
+  sector?: string;
 };
 
-export type PortfolioSummary = { totalRub: number; cashRub: number; cashPct: number; positions: number };
+export type PortfolioSummary = {
+  totalRub: number;
+  cashRub: number;
+  cashPct: number;
+  positions: number;
+  /** Sector share of the portfolio vs. the index, so the model can see concentration by industry. */
+  sectorWeightsPct?: Record<string, number>;
+  indexSectorWeightsPct?: Record<string, number>;
+};
 
 const SCOPE_INTRO: Record<ReviewScope, string> = {
   watchlist: 'Делаешь сравнительный технический обзор вотчлиста (списка бумаг, за которыми следит пользователь).',

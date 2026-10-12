@@ -10,7 +10,8 @@ import { newsForTicker } from '../feeds.js';
 import { getNewsSafe, headlines, newsQueryFor } from '../news.js';
 import { buildScorecard, pastCallsFor } from '../scorecard.js';
 import { computeScore } from '../scoring.js';
-import { backtest } from './screener.js';
+import { backtest, screener } from './screener.js';
+import { SECTOR_RU, sectorOf } from '../tinkoff.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { daysAgo, getCandles, getQuote } from '../moex.js';
 import { secidSchema } from './market.js';
@@ -102,6 +103,25 @@ analysisRouter.post('/:secid', async (req, res) => {
   ]);
   const relative = await relativeToIndex(secid, indicators, market);
   const score = computeScore(indicators, relative, company?.fundamentals ?? null);
+  const sector = await sectorOf(secid, quote.name);
+  const sectorPeers = await screener()
+    .then((rows) => {
+      const peers = rows.filter((r) => r.sector === sector && r.secid !== secid);
+      if (peers.length === 0) return { sector: SECTOR_RU[sector] ?? sector, peers: [] };
+      const median = (xs: (number | null)[]) => {
+        const v = xs.filter((x): x is number => x != null).sort((a, b) => a - b);
+        return v.length ? v[Math.floor(v.length / 2)] : null;
+      };
+      return {
+        sector: SECTOR_RU[sector] ?? sector,
+        peerCount: peers.length,
+        medianPe: median(peers.map((p) => p.ratios.pe)),
+        medianDividendYieldPct: median(peers.map((p) => p.ratios.dividendYieldPct)),
+        medianScore: median(peers.map((p) => p.score.total)),
+        peers: peers.slice(0, 8).map((p) => `${p.secid}: оценка ${p.score.total}, P/E ${p.ratios.pe ?? '—'}, дивиденды ${p.ratios.dividendYieldPct?.toFixed(1) ?? '—'}%, 3 мес ${p.ratios.change3mPct?.toFixed(1) ?? '—'}%`),
+      };
+    })
+    .catch(() => null);
   // Tell the model how well the momentum part of the score has actually predicted returns lately.
   const validation = await Promise.all([backtest(20), backtest(60)]).then(([b20, b60]) => ({
     note: 'Проверка технической части quantScore на бумагах индекса за последний год (без заглядывания в будущее)',
@@ -113,7 +133,7 @@ analysisRouter.post('/:secid', async (req, res) => {
       quote,
       indicators,
       daily,
-      { market, relative, news: headlines(news), company: companyForPrompt(company), pastCalls, score: { ...score, validation } },
+      { market, relative, news: headlines(news), company: { ...(companyForPrompt(company) ?? {}), sector: SECTOR_RU[sector] ?? sector }, pastCalls, score: { ...score, validation }, sectorPeers },
       question || undefined,
     ),
   );

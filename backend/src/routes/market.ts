@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getMarketContext } from '../context.js';
 import { marketNews, newsForTicker, urgentEvents } from '../feeds.js';
 import { getNewsSafe, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
-import { FUNDAMENTAL_FIELDS, getCompanyData, isSandbox, tinkoffConfigured } from '../tinkoff.js';
+import { FUNDAMENTAL_FIELDS, getCompanyData, getSectors, isSandbox, tinkoffConfigured } from '../tinkoff.js';
 import { CANDLE_INTERVALS, daysAgo, getCandles, getIndexComposition, getQuote, getQuotes, search } from '../moex.js';
 
 export const marketRouter = Router();
@@ -42,8 +42,9 @@ marketRouter.get('/context', async (_req, res) => {
 /** IMOEX constituents with weights and live quotes. */
 marketRouter.get('/imoex', async (_req, res) => {
   const members = await getIndexComposition();
-  const quotes = new Map((await getQuotes(members.map((m) => m.secid))).map((q) => [q.secid, q]));
-  res.json(members.map((m) => ({ ...m, quote: quotes.get(m.secid) ?? null })));
+  const [quoteList, sectors] = await Promise.all([getQuotes(members.map((m) => m.secid)), getSectors().catch(() => new Map<string, string>())]);
+  const quotes = new Map(quoteList.map((q) => [q.secid, q]));
+  res.json(members.map((m) => ({ ...m, sector: sectors.get(m.secid) ?? 'other', quote: quotes.get(m.secid) ?? null })));
 });
 
 marketRouter.get('/news', async (_req, res) => {

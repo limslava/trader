@@ -6,6 +6,7 @@ import { api } from '../api';
 import { AiVerdict } from '../components/AiVerdict';
 import { DecisionSummary } from '../components/DecisionSummary';
 import { Freshness } from '../components/Freshness';
+import { Peers } from '../components/Peers';
 import { Analysts } from '../components/Analysts';
 import { Dividends, KeyStats, NewsFeed } from '../components/CompanyStats';
 import { PriceChart } from '../components/PriceChart';
@@ -133,7 +134,12 @@ export function Instrument() {
           />
           <div key={tab} className="animate-rise">
             {tab === 'ai' && <AiVerdict secid={secid} onLevels={setLevels} />}
-            {tab === 'stats' && <KeyStats secid={secid} ind={indicators.data} />}
+            {tab === 'stats' && (
+              <div className="space-y-4">
+                <KeyStats secid={secid} ind={indicators.data} />
+                <Peers secid={secid} />
+              </div>
+            )}
             {tab === 'analysts' && <Analysts secid={secid} currentPrice={q?.price ?? null} />}
             {tab === 'dividends' && <Dividends secid={secid} />}
             {tab === 'news' && <NewsFeed secid={secid} title="Новости компании" />}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { api, type ScreenerRow } from '../api';
+import { useState } from 'react';
+import { api, SECTOR_RU, type ScreenerRow } from '../api';
 import { price } from '../format';
 import { BacktestCard } from './BacktestCard';
 import { SCORE_META, ScoreChip } from './ScoreBadge';
@@ -21,6 +22,9 @@ function Bar({ v }: { v: number | null }) {
 /** All index members ranked by the deterministic score, with the honest backtest above the table. */
 export function Screener() {
   const { data, isLoading, error } = useQuery({ queryKey: ['screener'], queryFn: api.screener, staleTime: 15 * 60_000 });
+  const [sector, setSector] = useState('all');
+  const sectors = [...new Set((data ?? []).map((r) => r.sector))];
+  const rows = (data ?? []).filter((r) => sector === 'all' || r.sector === sector);
   const groups: Record<ScreenerRow['score']['label'], number> = { strong: 0, neutral: 0, weak: 0 };
   for (const r of data ?? []) groups[r.score.label]++;
 
@@ -37,6 +41,19 @@ export function Screener() {
           }
         />
         <ErrorText error={error} />
+        {sectors.length > 0 && (
+          <div className="no-scrollbar -mx-1 mb-3 flex gap-1 overflow-x-auto">
+            {['all', ...sectors].map((s) => (
+              <button
+                key={s}
+                onClick={() => setSector(s)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap transition ${sector === s ? 'bg-primary text-on-primary' : 'bg-surface-2 text-ink-2 hover:text-ink'}`}
+              >
+                {s === 'all' ? 'Все отрасли' : (SECTOR_RU[s] ?? s)}
+              </button>
+            ))}
+          </div>
+        )}
         {isLoading && <Skeleton className="h-96" />}
         {data && (
           <div className="-mx-2 overflow-x-auto">
@@ -53,14 +70,16 @@ export function Screener() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((r) => (
+                {rows.map((r) => (
                   <tr key={r.secid} className="group border-t border-line/70">
                     <td className="px-2 py-2.5">
                       <Link to={`/s/${r.secid}`} className="flex items-center gap-3">
                         <Monogram secid={r.secid} size="sm" />
                         <span className="min-w-0">
                           <span className="block font-semibold group-hover:underline">{r.secid}</span>
-                          <span className="block truncate text-xs text-muted">{r.shortname}</span>
+                          <span className="block truncate text-xs text-muted">
+                            {r.shortname} · {SECTOR_RU[r.sector] ?? r.sector}
+                          </span>
                         </span>
                       </Link>
                     </td>

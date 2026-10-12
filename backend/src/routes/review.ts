@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { guarded, isRunning, reviewInstruments, type ReviewInput, type ReviewScope } from '../ai.js';
+import { guarded, isRunning, reviewInstruments, type PortfolioSummary, type ReviewInput, type ReviewScope } from '../ai.js';
 import { config } from '../config.js';
 import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
@@ -11,6 +11,7 @@ import { marketNews as primaryMarketNews, newsForTicker } from '../feeds.js';
 import { getNewsSafe, headlines, MARKET_NEWS_QUERY, newsQueryFor } from '../news.js';
 import { companyForPrompt, getCompanyData } from '../tinkoff.js';
 import { portfolio as getPortfolio } from '../trading.js';
+import { SECTOR_RU, sectorOf } from '../tinkoff.js';
 
 export const reviewRouter = Router();
 
@@ -87,9 +88,21 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
   ]);
   const quotes = new Map(quoteList.map((q) => [q.secid, q]));
   const holdings = new Map(pf?.positions.map((p) => [p.secid, p]));
-  const summary = pf
-    ? { totalRub: pf.total ?? 0, cashRub: pf.cash, cashPct: pf.total ? Number(((pf.cash / pf.total) * 100).toFixed(1)) : 0, positions: pf.positions.length }
-    : undefined;
+  let summary: PortfolioSummary | undefined;
+  if (pf) {
+    const total = pf.total ?? 0;
+    const sectorWeightsPct: Record<string, number> = {};
+    for (const p of pf.positions) {
+      const key = SECTOR_RU[p.sector] ?? p.sector;
+      sectorWeightsPct[key] = Number(((sectorWeightsPct[key] ?? 0) + (total ? ((p.value ?? 0) / total) * 100 : 0)).toFixed(1));
+    }
+    const indexSectorWeightsPct: Record<string, number> = {};
+    for (const m of await getIndexComposition().catch(() => [])) {
+      const key = SECTOR_RU[await sectorOf(m.secid)] ?? 'Прочее';
+      indexSectorWeightsPct[key] = Number(((indexSectorWeightsPct[key] ?? 0) + m.weight).toFixed(1));
+    }
+    summary = { totalRub: total, cashRub: pf.cash, cashPct: total ? Number(((pf.cash / total) * 100).toFixed(1)) : 0, positions: pf.positions.length, sectorWeightsPct, indexSectorWeightsPct };
+  }
 
   // Fetch history in small batches to stay polite with MOEX ISS.
   const inputs: ReviewInput[] = [];
@@ -111,6 +124,7 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
           recentCloses: daily.slice(scope === 'imoex' ? -5 : -20).map((c) => c.close),
           news: scope !== 'imoex' ? headlines(await newsForTicker(secid, 14, 4).then(async (n) => (n.length >= 2 ? n : [...n, ...(await getNewsSafe(newsQueryFor(secid, quote.name), 14, 4 - n.length))]))) : undefined,
           company: companyForPrompt(await getCompanyData(secid)),
+          sector: SECTOR_RU[await sectorOf(secid, quote.name)],
           holding: (() => {
             const h = holdings.get(secid);
             if (!h || !pf?.total) return undefined;
