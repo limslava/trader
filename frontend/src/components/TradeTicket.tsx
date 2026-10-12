@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Minus, Plus, ShieldCheck, XCircle } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError, type Order, type OrderInput } from '../api';
 import { money, price } from '../format';
@@ -122,6 +122,8 @@ export function TradeTicket({ secid }: { secid: string }) {
     },
     onError: () => setConfirming(false),
   });
+  // Clear the last result banner whenever the user changes the order.
+  useEffect(() => place.reset(), [direction, type, lots, limitPrice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!enabled) return null;
 
@@ -150,7 +152,9 @@ export function TradeTicket({ secid }: { secid: string }) {
   const maxBuy = unitPrice && pf.data ? Math.floor(pf.data.availableCash / (i.lot * unitPrice * (1 + COMMISSION))) : 0;
   const max = direction === 'buy' ? maxBuy : freeLots;
 
-  const problem = !i.canTrade
+  const problem = !pf.data
+    ? null
+    : !i.canTrade
     ? 'Биржа сейчас закрыта. Торги: в будни ~7:00–23:50, в выходные 10:00–19:00 МСК.'
     : type === 'market' && !i.marketOrderAvailable
       ? 'Сейчас доступны только лимитные заявки.'

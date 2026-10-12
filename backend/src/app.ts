@@ -21,7 +21,9 @@ export function createApp() {
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
 
-  app.get('/health', async (_req, res) => {
+  // Liveness must not depend on the DB (a DB blip would get the container restarted); readiness does.
+  app.get('/health', (_req, res) => res.json({ ok: true }));
+  app.get('/ready', async (_req, res) => {
     await pool.query('SELECT 1');
     res.json({ ok: true });
   });
@@ -39,12 +41,15 @@ export function createApp() {
   // In production the backend also serves the built SPA.
   const staticDir = config.STATIC_DIR ?? path.resolve(import.meta.dirname, '../../frontend/dist');
   if (fs.existsSync(staticDir)) {
+    // Vite hashes asset names, so they can be cached forever; index.html must always be revalidated.
+    app.use('/assets', express.static(path.join(staticDir, 'assets'), { immutable: true, maxAge: '1y' }));
     app.use(express.static(staticDir, { index: false, maxAge: '1h' }));
     app.get('/{*path}', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
   }
 
-  const onError: ErrorRequestHandler = (err, _req, res, _next) => {
+  const onError: ErrorRequestHandler = (err, req, res, _next) => {
     if (err instanceof HttpError) {
+      if (err.status >= 500) console.error(`${req.method} ${req.originalUrl} -> ${err.status}: ${err.message}`);
       res.status(err.status).json({ error: err.message });
     } else if (err instanceof ZodError) {
       res.status(400).json({ error: 'Некорректный запрос', details: err.issues });

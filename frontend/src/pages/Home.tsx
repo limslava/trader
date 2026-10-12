@@ -125,7 +125,7 @@ function AiIdea() {
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="max-w-xl text-sm leading-relaxed text-ink-2">
-            Не знаете, с чего начать? AI разберёт 44 крупнейшие компании и покажет, какие сейчас выглядят сильнее всего.
+            Не знаете, с чего начать? AI разберёт крупнейшие компании Мосбиржи и покажет, какие сейчас выглядят сильнее всего.
           </p>
           <Link to="/market" className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-on-primary">
             Сделать обзор рынка <ArrowRight className="size-4" aria-hidden />
@@ -179,7 +179,7 @@ function Watchlist() {
         >
           <span>
             <Plus className="mx-auto mb-2 size-5" aria-hidden />
-            Добавить из 44 компаний
+            Добавить из компаний индекса
           </span>
         </Link>
       </div>

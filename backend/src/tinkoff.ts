@@ -1,8 +1,13 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import tls from 'node:tls';
+import { Agent } from 'undici';
 import { config } from './config.js';
-import { HttpError, TtlCache } from './http.js';
+import { HttpError, todayMsk, TtlCache } from './http.js';
 
 /**
- * T-Invest API (REST gateway). Requires the Russian Trusted CA (see NODE_EXTRA_CA_CERTS in package.json).
+ * T-Invest API (REST gateway). T-Bank's certificate chains to the Russian Trusted CA, which we trust for this
+ * host only (a dedicated undici dispatcher) rather than process-wide, so it cannot vouch for any other site.
  * A Sandbox token only works against the sandbox host, which also serves instruments (dividends, fundamentals)
  * and quotes, so one token covers both analysis data and paper trading.
  */
@@ -10,6 +15,11 @@ const HOST = config.TINKOFF_SANDBOX === 'true' ? 'sandbox-invest-public-api.tban
 const BASE = `https://${HOST}/rest/tinkoff.public.invest.api.contract.v1.`;
 
 export const isSandbox = config.TINKOFF_SANDBOX === 'true';
+
+const CA_FILE = path.resolve(import.meta.dirname, '../certs/russian-trusted-ca.pem');
+const dispatcher = new Agent({
+  connect: { ca: [...tls.rootCertificates, fs.readFileSync(CA_FILE, 'utf8')] },
+});
 
 type Quotation = { units?: string; nano?: number };
 type Money = Quotation & { currency?: string };
@@ -43,6 +53,8 @@ export async function call<T>(method: string, body: unknown): Promise<T> {
     headers: { Authorization: `Bearer ${config.TINKOFF_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
+    // @ts-expect-error undici's dispatcher option is not in the DOM fetch types
+    dispatcher,
   });
   const data = (await res.json().catch(() => ({}))) as { message?: string; description?: string };
   if (!res.ok) {
@@ -172,14 +184,13 @@ export type CompanyData = {
   dividends: { upcoming: Dividend[]; recent: Dividend[] };
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
 
 /** Dividends and fundamentals together; null when T-Invest is not configured or unavailable. */
 export async function getCompanyData(secid: string): Promise<CompanyData | null> {
   if (!tinkoffConfigured()) return null;
   try {
     const [fundamentals, dividends] = await Promise.all([getFundamentals(secid), getDividends(secid)]);
-    const t = today();
+    const t = todayMsk();
     return {
       fundamentals,
       dividends: {

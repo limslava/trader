@@ -87,6 +87,8 @@ export type Review = {
   createdAt: string;
   model: string;
   scope: ReviewScope;
+  status: 'running' | 'done' | 'failed';
+  error: string | null;
   secids: string[];
   result: {
     summary: string;
@@ -215,6 +217,10 @@ export class ApiError extends Error {
   }
 }
 
+/** Called on any 401 except the session probe itself, so an expired session sends the user back to login. */
+export let onUnauthorized: () => void = () => {};
+export const setUnauthorizedHandler = (fn: () => void) => (onUnauthorized = fn);
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`/api${path}`, {
     method,
@@ -223,7 +229,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     credentials: 'same-origin',
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new ApiError(res.status, data.error ?? `Ошибка ${res.status}`);
+  if (!res.ok) {
+    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') onUnauthorized();
+    throw new ApiError(res.status, data.error ?? `Ошибка ${res.status}`);
+  }
   return data as T;
 }
 
@@ -269,5 +278,6 @@ export const api = {
 
   reviews: (scope: ReviewScope) => request<Review[]>('GET', `/review?scope=${scope}`),
   createReview: (scope: ReviewScope) => request<Review>('POST', '/review', { scope }),
+  review: (id: number) => request<Review>('GET', `/review/${id}`),
   deleteReview: (id: number) => request('DELETE', `/review/${id}`),
 };

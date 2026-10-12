@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { config } from './config.js';
 import type { MarketContext } from './context.js';
-import { HttpError } from './http.js';
+import { HttpError, KeyedLock, RateLimiter } from './http.js';
 import type { IndicatorSnapshot } from './indicators.js';
 import type { Candle, Quote } from './moex.js';
 
@@ -141,9 +141,21 @@ function parseJson<T>(content: string, schema: z.ZodType<T>): T {
   return schema.parse(JSON.parse(json));
 }
 
+// Paid calls: never run the same job twice at once, and cap the rate so a bug cannot burn the key's budget.
+const aiLock = new KeyedLock();
+const aiBudget = new RateLimiter(12, 60_000);
+
+/** Runs `job` under a per-key guard; a second request for the same key gets 409 instead of a second paid call. */
+export const isRunning = (key: string) => aiLock.isHeld(key);
+
+export function guarded<T>(key: string, job: () => Promise<T>): Promise<T> {
+  return aiLock.tryRun(key, job, () => new HttpError(409, 'Этот анализ уже выполняется — подождите, он скоро появится'));
+}
+
 /** Calls the model expecting JSON matching `schema`, with one repair attempt on invalid output. */
 async function askJson<T>(system: string, user: string, schema: z.ZodType<T>): Promise<T> {
   if (!aiConfigured()) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
+  if (!aiBudget.take()) throw new HttpError(429, 'Слишком много AI-запросов за минуту, попробуйте чуть позже');
 
   const messages = [
     { role: 'system', content: system },

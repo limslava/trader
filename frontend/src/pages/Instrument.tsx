@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, Star } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import { api } from '../api';
 import { AiVerdict } from '../components/AiVerdict';
@@ -12,10 +12,23 @@ import { price } from '../format';
 
 type Levels = { support: number[]; resistance: number[] };
 
+/** Matches Tailwind's lg breakpoint; the trade ticket is rendered once, in whichever slot fits. */
+function useWide() {
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const on = () => setWide(mql.matches);
+    mql.addEventListener('change', on);
+    return () => mql.removeEventListener('change', on);
+  }, []);
+  return wide;
+}
+
 export function Instrument() {
   const secid = useParams().secid!.toUpperCase();
   const qc = useQueryClient();
   const [levels, setLevels] = useState<Levels>();
+  const wide = useWide();
 
   const quote = useQuery({ queryKey: ['quote', secid], queryFn: () => api.quote(secid), refetchInterval: 20_000 });
   const indicators = useQuery({ queryKey: ['indicators', secid], queryFn: () => api.indicators(secid) });
@@ -88,8 +101,8 @@ export function Instrument() {
             <PriceChart secid={secid} levels={levels} height="h-[240px] md:h-[320px]" />
           </Surface>
 
-          {canTrade && (
-            <Surface id="trade" className="scroll-mt-20 p-5 lg:hidden">
+          {canTrade && !wide && (
+            <Surface id="trade" className="scroll-mt-20 p-5">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-base font-semibold tracking-tight">Сделка</h2>
                 <SandboxBadge />
@@ -103,8 +116,8 @@ export function Instrument() {
           <NewsFeed secid={secid} title="Новости компании" />
         </div>
 
-        {canTrade && (
-          <aside className="hidden lg:block">
+        {canTrade && wide && (
+          <aside>
             <div className="lg:sticky lg:top-24">
               <Surface className="p-5">
                 <div className="mb-4 flex items-center justify-between">

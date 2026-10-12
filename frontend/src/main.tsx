@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tan
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router';
-import { api, ApiError } from './api';
+import { api, ApiError, setUnauthorizedHandler } from './api';
 import { Layout } from './components/Layout';
 import { Spinner } from './components/ui';
 import './index.css';
@@ -24,13 +24,8 @@ const queryClient = new QueryClient({
   },
 });
 
-// Any 401 (expired session) sends the user back to the login screen.
-queryClient.getQueryCache().subscribe((event) => {
-  const err = event.query.state.error;
-  if (err instanceof ApiError && err.status === 401 && event.query.queryKey[0] !== 'me') {
-    queryClient.setQueryData(['me'], null);
-  }
-});
+// Any 401 (expired session) from any request sends the user back to the login screen.
+setUnauthorizedHandler(() => queryClient.setQueryData(['me'], null));
 
 function App() {
   const qc = useQueryClient();

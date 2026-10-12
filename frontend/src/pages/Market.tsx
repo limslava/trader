@@ -36,7 +36,7 @@ function Companies() {
     <Surface className="p-5 md:p-5">
       <SectionHeader
         title="Крупнейшие компании"
-        subtitle="44 бумаги индекса Мосбиржи — с них обычно начинают"
+        subtitle={members.data ? `${members.data.length} бумаги индекса Мосбиржи — с них обычно начинают` : 'Бумаги индекса Мосбиржи — с них обычно начинают'}
         action={
           <Segmented
             size="sm"
@@ -127,6 +127,7 @@ function Companies() {
 
 export function Market() {
   const ai = useQuery({ queryKey: ['aiStatus'], queryFn: api.aiStatus, staleTime: Infinity });
+  const members = useQuery({ queryKey: ['imoex'], queryFn: api.imoex, refetchInterval: 60_000 });
   const ctx = useQuery({ queryKey: ['context'], queryFn: api.context, staleTime: 10 * 60_000 });
   const imoex = ctx.data?.imoex;
 
@@ -169,7 +170,7 @@ export function Market() {
         </div>
       </div>
 
-      <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={44} />
+      <ReviewCard scope="imoex" canRun={!!ai.data?.configured} count={members.data?.length ?? 0} />
       <Companies />
       <NewsFeed title="Новости рынка" />
     </div>

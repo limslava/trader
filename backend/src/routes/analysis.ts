@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { aiConfigured, analyze } from '../ai.js';
+import { aiConfigured, analyze, guarded } from '../ai.js';
 import { config } from '../config.js';
 import { getMarketContext, relativeToIndex } from '../context.js';
 import { pool } from '../db.js';
@@ -90,12 +90,8 @@ analysisRouter.post('/:secid', async (req, res) => {
     getCompanyData(secid),
   ]);
   const relative = await relativeToIndex(secid, indicators, market);
-  const result = await analyze(
-    quote,
-    indicators,
-    daily,
-    { market, relative, news: headlines(news), company: companyForPrompt(company) },
-    question || undefined,
+  const result = await guarded(`analysis:${secid}`, () =>
+    analyze(quote, indicators, daily, { market, relative, news: headlines(news), company: companyForPrompt(company) }, question || undefined),
   );
 
   const { rows } = await pool.query<Row>(

@@ -15,8 +15,8 @@ const COPY: Record<ReviewScope, { title: string; empty: string; running: string 
   imoex: {
     title: 'AI-обзор рынка',
     empty:
-      'AI разберёт 44 крупнейшие компании с учётом ставки ЦБ, курса рубля, отчётности и новостей: что происходит на рынке, кто сильнее, кого лучше обойти. Около 30 секунд.',
-    running: 'Анализирую рынок, ~30 сек…',
+      'AI разберёт все компании индекса Мосбиржи с учётом ставки ЦБ, курса рубля, отчётности и новостей: что происходит на рынке, кто сильнее, кого лучше обойти. Занимает 1–2 минуты.',
+    running: 'Анализирую рынок…',
   },
 };
 
@@ -53,7 +53,12 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
   const copy = COPY[scope];
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const reviews = useQuery({ queryKey: ['reviews', scope], queryFn: () => api.reviews(scope) });
+  const reviews = useQuery({
+    queryKey: ['reviews', scope],
+    queryFn: () => api.reviews(scope),
+    // A review runs in the background on the server; poll while one is in progress.
+    refetchInterval: (q) => (q.state.data?.some((r) => r.status === 'running') ? 3000 : false),
+  });
 
   const create = useMutation({
     mutationFn: () => api.createReview(scope),
@@ -70,8 +75,11 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
     },
   });
 
-  const list = reviews.data ?? [];
-  const review = list.find((r) => r.id === selectedId) ?? list[0];
+  const list = (reviews.data ?? []).filter((r) => r.status !== 'failed' || r.id === selectedId);
+  const running = reviews.data?.find((r) => r.status === 'running');
+  const review = list.find((r) => r.id === selectedId && r.status === 'done') ?? list.find((r) => r.status === 'done');
+  const failed = reviews.data?.find((r) => r.id === selectedId && r.status === 'failed');
+  const busy = create.isPending || !!running;
   const items = review ? (expanded ? review.result.items : review.result.items.slice(0, COLLAPSED)) : [];
 
   return (
@@ -95,15 +103,15 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
             aria-label="Выбрать обзор"
             className="h-10 rounded-full border border-line bg-surface px-3 text-sm text-ink-2"
           >
-            {list.map((r) => (
+            {list.filter((r) => r.status === 'done').map((r) => (
               <option key={r.id} value={r.id}>
                 {dateTime(r.createdAt)}
               </option>
             ))}
           </select>
         )}
-        <Button variant="ai" onClick={() => create.mutate()} disabled={!canRun || count === 0 || create.isPending}>
-          {create.isPending ? (
+        <Button variant="ai" onClick={() => create.mutate()} disabled={!canRun || count === 0 || busy}>
+          {busy ? (
             <>
               <Spinner /> {copy.running}
             </>
@@ -116,8 +124,14 @@ export function ReviewCard({ scope, canRun, count }: { scope: ReviewScope; canRu
         </Button>
       </div>
 
-      <ErrorText error={create.error ?? reviews.error} />
-      {!review && !reviews.isLoading && (
+      <ErrorText error={create.error ?? reviews.error ?? (failed ? new Error(`Обзор не удался: ${failed.error ?? 'ошибка'}`) : null)} />
+      {running && (
+        <p className="mb-4 text-sm text-muted">
+          Собираю котировки, отчётность и новости по {running.secids.length} бумагам, затем модель пишет обзор. Обычно 1–2 минуты —
+          страницу можно закрыть, результат сохранится.
+        </p>
+      )}
+      {!review && !reviews.isLoading && !running && (
         <Empty>{count === 0 && scope === 'watchlist' ? 'Добавьте бумаги в вотчлист, чтобы получить обзор.' : copy.empty}</Empty>
       )}
 

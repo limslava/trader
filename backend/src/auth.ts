@@ -24,16 +24,23 @@ function checkRateLimit(ip: string) {
   }
 }
 function recordFailure(ip: string) {
+  // Keep the map bounded: drop expired buckets whenever we touch it.
+  for (const [k, v] of failures) if (v.resetAt <= Date.now()) failures.delete(k);
   const entry = failures.get(ip);
   if (!entry || entry.resetAt <= Date.now()) failures.set(ip, { count: 1, resetAt: Date.now() + 15 * 60_000 });
   else entry.count++;
+}
+
+/** Derived from the password too, so changing APP_PASSWORD logs every device out. */
+function sessionSecret(): string {
+  return crypto.createHmac('sha256', config.JWT_SECRET).update(config.APP_PASSWORD).digest('hex');
 }
 
 export const requireAuth: RequestHandler = (req, _res, next) => {
   const token = req.cookies?.[COOKIE];
   if (!token) throw new HttpError(401, 'Требуется вход');
   try {
-    jwt.verify(token, config.JWT_SECRET);
+    jwt.verify(token, sessionSecret(), { algorithms: ['HS256'] });
   } catch {
     throw new HttpError(401, 'Сессия истекла, войдите снова');
   }
@@ -51,7 +58,7 @@ authRouter.post('/login', (req, res) => {
     throw new HttpError(401, 'Неверный пароль');
   }
   failures.delete(ip);
-  const token = jwt.sign({ sub: 'owner' }, config.JWT_SECRET, { expiresIn: `${SESSION_DAYS}d` });
+  const token = jwt.sign({ sub: 'owner' }, sessionSecret(), { algorithm: 'HS256', expiresIn: `${SESSION_DAYS}d` });
   res.cookie(COOKIE, token, {
     httpOnly: true,
     sameSite: 'lax',

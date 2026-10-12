@@ -11,5 +11,7 @@ const server = createApp().listen(config.PORT, () => {
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
     server.close(() => void pool.end().then(() => process.exit(0)));
+    // Docker sends SIGKILL after 10 s; don't let a slow AI call keep us alive past that.
+    setTimeout(() => process.exit(0), 8_000).unref();
   });
 }

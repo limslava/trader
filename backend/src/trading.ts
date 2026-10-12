@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { pool } from './db.js';
-import { HttpError, TtlCache } from './http.js';
+import { HttpError, KeyedLock, TtlCache } from './http.js';
 import { call, isSandbox, q, tinkoffConfigured } from './tinkoff.js';
 
 /**
@@ -99,9 +99,14 @@ async function findAccount(): Promise<Account | null> {
   return accounts.find((a) => a.status === 'ACCOUNT_STATUS_OPEN') ?? null;
 }
 
+// The account id does not change while the process runs; avoid a broker round-trip on every call.
+let cachedAccount: Account | null = null;
+
 export async function requireAccount(): Promise<Account> {
+  if (cachedAccount) return cachedAccount;
   const account = await findAccount();
   if (!account) throw new HttpError(409, 'Счёт песочницы не открыт');
+  cachedAccount = account;
   return account;
 }
 
@@ -122,6 +127,7 @@ export async function payIn(accountId: string, amount: number) {
 export async function closeAccount() {
   const account = await requireAccount();
   await call('SandboxService/CloseSandboxAccount', { accountId: account.id });
+  cachedAccount = null;
 }
 
 // --- Portfolio ---
@@ -248,7 +254,14 @@ function orderDto(o: OrderState, ticker?: string) {
  * Validates against what the user actually owns: no buying beyond available cash (the sandbox would allow 2x
  * leverage) and no selling more than held (no shorts). Beginners should not trade on margin by accident.
  */
-export async function placeOrder(input: OrderInput) {
+const orderLock = new KeyedLock();
+
+/** Orders are serialized so two concurrent buys cannot both pass the cash check (TOCTOU). */
+export function placeOrder(input: OrderInput) {
+  return orderLock.run('orders', () => placeOrderUnlocked(input));
+}
+
+async function placeOrderUnlocked(input: OrderInput) {
   const account = await requireAccount();
   const [inst, status, pf] = await Promise.all([
     instrumentByTicker(input.secid),
@@ -299,15 +312,46 @@ export async function placeOrder(input: OrderInput) {
     orderId: requestId, // idempotency key
     ...(price !== undefined ? { price: toQuotation(price) } : {}),
   };
-  const res = await call<OrderState>('OrdersService/PostOrder', body);
-  const dto = orderDto(res, input.secid);
-
+  // Record intent BEFORE talking to the broker: if the call times out after the broker accepted it,
+  // the log still shows a pending order instead of silently losing it.
   await pool.query(
-    `INSERT INTO trade_log (request_id, order_id, account_id, secid, direction, order_type, lots, price, status, response)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-    [requestId, dto.orderId, account.id, input.secid, input.direction, input.type, input.lots, price ?? null, dto.status, res],
+    `INSERT INTO trade_log (request_id, account_id, secid, direction, order_type, lots, price, status, response)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', '{}')`,
+    [requestId, account.id, input.secid, input.direction, input.type, input.lots, price ?? null],
   );
+
+  let res: OrderState;
+  try {
+    res = await call<OrderState>('OrdersService/PostOrder', body);
+  } catch (err) {
+    // Timeout or network error: the broker may still have the order. Try to find it by our idempotency key.
+    const found = await reconcile(account.id, requestId).catch(() => null);
+    if (!found) {
+      await pool.query(`UPDATE trade_log SET status = 'FAILED', response = $2 WHERE request_id = $1`, [
+        requestId,
+        { error: err instanceof Error ? err.message : String(err) },
+      ]);
+      throw err;
+    }
+    res = found;
+  }
+
+  const dto = orderDto(res, input.secid);
+  await pool.query(`UPDATE trade_log SET order_id = $2, status = $3, response = $4 WHERE request_id = $1`, [
+    requestId,
+    dto.orderId,
+    dto.status,
+    res,
+  ]);
   return dto;
+}
+
+/** Looks the order up by the client-side idempotency key among active orders and recent operations. */
+async function reconcile(accountId: string, requestId: string): Promise<OrderState | null> {
+  const { orders = [] } = await call<{ orders?: (OrderState & { orderRequestId?: string })[] }>('OrdersService/GetOrders', {
+    accountId,
+  });
+  return orders.find((o) => o.orderRequestId === requestId) ?? null;
 }
 
 export async function activeOrders() {
