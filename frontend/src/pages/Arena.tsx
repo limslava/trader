@@ -2,10 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause, Play, RotateCw, Square, Trash2, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { api, type Arena as ArenaData, type ArenaAgent, type ArenaRun } from '../api';
+import { api, type Arena as ArenaData, type ArenaAgent, type ArenaGroup, type ArenaGroupKey, type ArenaRun } from '../api';
 import { Sparkline } from '../components/Sparkline';
-import { SandboxBadge } from '../components/TradeTicket';
-import { Button, Delta, Empty, ErrorText, Monogram, Skeleton, Surface, Tabs } from '../components/ui';
+import { Button, Delta, Empty, ErrorText, Monogram, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
 import { date, dateTime, money, pct, price } from '../format';
 
 /**
@@ -208,10 +207,31 @@ function AgentPanel({ id, models, onChanged }: { id: number; models: ArenaData['
   );
 }
 
-function SetupCard({ personas }: { personas: { key: string; name: string; tagline: string }[] }) {
+const GROUP_INTRO: Record<ArenaGroupKey, { title: string; text: string; plan: (models: number, personas: number) => string }> = {
+  main: {
+    title: 'Основной турнир',
+    text: 'Пять агентов с разными характерами получают по одинаковому виртуальному счёту и каждый будний день в 11:00 МСК сами решают, что купить или продать. Сделки исполняются по живой цене биржи с комиссией 0,05%. Модель только предлагает сделки, а жёсткие лимиты (не больше 10% счёта в одной бумаге, 6 сделок в неделю, стоп при просадке 15%, без плеча и шортов) проверяет код.',
+    plan: () => '5 агентов: по одному на характер, модель у каждого можно менять',
+  },
+  models: {
+    title: 'Турнир моделей',
+    text: 'Один и тот же нейтральный характер «Инвестор» на каждой доступной модели. Характер уравнен, поэтому разница в результатах — это разница между моделями.',
+    plan: (m) => `${m} агентов: по одному на модель`,
+  },
+  styles: {
+    title: 'Турнир стилей',
+    text: 'Каждый характер на каждой модели. Видно, какой стиль выживает независимо от того, кто думает, и какая модель лучше играет каждый стиль.',
+    plan: (m, p) => `${p} × ${m} = ${p * m} агентов; раунд с локальными моделями займёт около ${Math.ceil((p * m * 3) / 60 * 10) / 10} ч`,
+  },
+};
+
+function SetupCard({ group, data }: { group: ArenaGroupKey; data: ArenaData }) {
   const qc = useQueryClient();
   const [capital, setCapital] = useState('100000');
-  const setup = useMutation({ mutationFn: api.arenaSetup, onSuccess: () => qc.invalidateQueries({ queryKey: ['arena'] }) });
+  const setup = useMutation({ mutationFn: (n: number) => api.arenaSetup(group, n), onSuccess: () => qc.invalidateQueries({ queryKey: ['arena'] }) });
+  const intro = GROUP_INTRO[group];
+  const personas = group === 'models' ? data.personas.filter((p) => p.key === 'neutral') : data.personas.filter((p) => p.key !== 'neutral');
+  const localCount = data.models.filter((m) => m.local).length;
   return (
     <Surface className="p-6">
       <div className="flex items-start gap-4">
@@ -219,23 +239,26 @@ function SetupCard({ personas }: { personas: { key: string; name: string; taglin
           <Trophy className="size-6" aria-hidden />
         </span>
         <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">Арена: турнир AI-агентов</h1>
-          <p className="mt-1 max-w-2xl text-sm text-muted">
-            Пять агентов с разными характерами получают по одинаковому учебному счёту и каждый будний день в 11:00 МСК сами решают, что купить
-            или продать. Модель только предлагает сделки, а жёсткие лимиты (не больше 10% счёта в одной бумаге, 6 сделок в неделю, стоп при
-            просадке 15%, без плеча и шортов) проверяет код. Так видно, какой стиль переживает российский рынок, без риска для настоящих денег.
-          </p>
+          <h1 className="text-xl font-semibold tracking-tight">{intro.title}</h1>
+          <p className="mt-1 max-w-2xl text-sm text-muted">{intro.text}</p>
+          <p className="mt-2 text-sm font-medium">{intro.plan(data.models.length, personas.length)}</p>
         </div>
       </div>
       <ul className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         {personas.map((p) => (
           <li key={p.key} className="rounded-2xl bg-surface-2 p-3">
-            <span className={`inline-grid size-8 place-items-center rounded-xl text-sm font-bold ${PERSONA_TONE[p.key] ?? ''}`}>{p.name.slice(0, 1)}</span>
+            <span className={`inline-grid size-8 place-items-center rounded-xl text-sm font-bold ${PERSONA_TONE[p.key] ?? 'bg-surface'}`}>{p.name.slice(0, 1)}</span>
             <p className="mt-2 text-sm font-semibold">{p.name}</p>
             <p className="text-xs text-muted">{p.tagline}</p>
           </li>
         ))}
       </ul>
+      {group !== 'main' && (
+        <p className="mt-3 text-xs text-muted">
+          Модели: {data.models.map((m) => modelName(m.id)).join(', ')}
+          {localCount > 0 && ` · локальные ходят 3–5 минут каждая`}
+        </p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -249,8 +272,8 @@ function SetupCard({ personas }: { personas: { key: string; name: string; taglin
           <input value={capital} onChange={(e) => setCapital(e.target.value)} inputMode="numeric" aria-label="Стартовый капитал, ₽" className="w-28 bg-transparent text-lg font-semibold outline-none" />
           <span className="text-muted">₽</span>
         </label>
-        <Button type="submit" variant="primary" size="lg" disabled={setup.isPending}>
-          {setup.isPending ? 'Открываем счета…' : 'Создать арену'}
+        <Button type="submit" variant="primary" size="lg" disabled={setup.isPending || (group !== 'main' && data.models.length < 2)}>
+          {setup.isPending ? 'Открываем счета…' : 'Создать турнир'}
         </Button>
       </form>
       <ErrorText error={setup.error} />
@@ -258,79 +281,48 @@ function SetupCard({ personas }: { personas: { key: string; name: string; taglin
   );
 }
 
-export function Arena() {
+function GroupView({ group, data, selected, onSelect }: { group: ArenaGroup; data: ArenaData; selected?: number; onSelect: (id: number) => void }) {
   const qc = useQueryClient();
-  const arena = useQuery({ queryKey: ['arena'], queryFn: api.arena, refetchInterval: 15_000 });
-  const [selected, setSelected] = useState<number>();
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['arena'] });
     qc.invalidateQueries({ queryKey: ['arenaAgent'] });
   };
-  const runAll = useMutation({ mutationFn: api.arenaRunAll, onSuccess: () => setTimeout(refresh, 500) });
-  const pause = useMutation({ mutationFn: api.arenaPause, onSuccess: refresh });
-  const teardown = useMutation({ mutationFn: api.arenaTeardown, onSuccess: refresh });
-
-  if (arena.isLoading) return <Skeleton className="h-72 rounded-[18px]" />;
-  if (arena.error) return <ErrorText error={arena.error} />;
-  if (!arena.data) return null;
-  const a = arena.data;
-
-  if (!a.configured) {
-    return (
-      <Surface className="p-6">
-        <h1 className="text-xl font-semibold">Арена</h1>
-        <p className="mt-2 text-muted">Нужны песочница T-Invest (TINKOFF_TOKEN, TINKOFF_SANDBOX=true) и хотя бы одна модель: ключ AI (AI_API_KEY) в backend/.env или запущенная Ollama.</p>
-      </Surface>
-    );
-  }
-  if (a.agents.length === 0) return <SetupCard personas={a.personas} />;
-
-  const current = selected ?? a.agents[0].id;
-  const leader = a.agents[0];
-  const anyRunning = a.roundRunning || a.agents.some((x) => x.running);
+  const teardown = useMutation({ mutationFn: () => api.arenaTeardown(group.key), onSuccess: refresh });
+  const current = group.agents.some((x) => x.id === selected) ? selected! : group.agents[0].id;
+  const leader = group.agents[0];
 
   return (
     <div className="space-y-5">
       <Surface className="px-5 py-4 md:px-7">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-semibold tracking-tight">Турнир идёт с {date(a.since)}</h1>
-              <SandboxBadge />
-              {a.paused && <span className="rounded-full bg-hold/20 px-2 py-0.5 text-[11px] font-semibold">на паузе</span>}
-            </div>
+            <h2 className="text-base font-semibold tracking-tight">
+              {group.title}: идёт с {date(group.since)}
+            </h2>
             <p className="mt-0.5 text-sm text-muted">
-              Ходы по будням в {a.runHourMsk}:00 МСК · лидер — {leader.name} ({pct(leader.returnPct)})
+              {group.description} Лидер — {leader.name} ({pct(leader.returnPct)}).
             </p>
           </div>
           <div className="flex gap-6 text-sm">
             <span>
               <span className="block text-xs text-muted">Индекс Мосбиржи</span>
-              <Delta value={a.benchmarks.imoexPct} />
+              <Delta value={group.benchmarks.imoexPct} />
             </span>
             <span>
               <span className="block text-xs text-muted">ОФЗ (1 год)</span>
-              <Delta value={a.benchmarks.ofzPct} />
+              <Delta value={group.benchmarks.ofzPct} />
             </span>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="ai" onClick={() => runAll.mutate()} disabled={anyRunning || runAll.isPending || a.paused} title="Все активные агенты принимают решение сейчас">
-              <RotateCw className="size-4" aria-hidden /> Раунд сейчас
-            </Button>
-            <Button onClick={() => pause.mutate(!a.paused)} disabled={pause.isPending}>
-              {a.paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />} {a.paused ? 'Продолжить' : 'Пауза'}
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => window.confirm('Закрыть счета всех агентов и удалить журнал? Это нельзя отменить.') && teardown.mutate()}
-              disabled={teardown.isPending}
-              title="Закрыть счета агентов и удалить арену"
-            >
-              <Trash2 className="size-4" aria-hidden />
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            onClick={() => window.confirm(`Закрыть счета всех агентов турнира «${group.title}» и удалить их журнал? Это нельзя отменить.`) && teardown.mutate()}
+            disabled={teardown.isPending}
+            title="Закрыть счета агентов и удалить турнир"
+          >
+            <Trash2 className="size-4" aria-hidden />
+          </Button>
         </div>
-        <ErrorText error={runAll.error ?? pause.error ?? teardown.error} />
+        <ErrorText error={teardown.error} />
       </Surface>
 
       <Surface className="overflow-x-auto">
@@ -354,10 +346,10 @@ export function Arena() {
             </tr>
           </thead>
           <tbody>
-            {a.agents.map((ag, i) => (
+            {group.agents.map((ag, i) => (
               <tr
                 key={ag.id}
-                onClick={() => setSelected(ag.id)}
+                onClick={() => onSelect(ag.id)}
                 className={`cursor-pointer border-b border-line/50 last:border-0 ${current === ag.id ? 'bg-accent/5' : 'hover:bg-surface-2/60'}`}
               >
                 <td className="px-5 py-3 md:px-7">
@@ -369,7 +361,13 @@ export function Arena() {
                     <span className="min-w-0">
                       <span className="block font-semibold">{ag.name}</span>
                       <span className="block truncate text-xs text-muted">
-                        {ag.tagline} · <span className="font-medium">{modelName(ag.effectiveModel)}</span>
+                        {group.key === 'main' ? (
+                          <>
+                            {ag.tagline} · <span className="font-medium">{modelName(ag.effectiveModel)}</span>
+                          </>
+                        ) : (
+                          ag.tagline
+                        )}
                       </span>
                     </span>
                   </span>
@@ -394,7 +392,63 @@ export function Arena() {
         </table>
       </Surface>
 
-      <AgentPanel id={current} models={a.models} onChanged={refresh} />
+      <AgentPanel id={current} models={data.models} onChanged={refresh} />
+    </div>
+  );
+}
+
+export function Arena() {
+  const qc = useQueryClient();
+  const arena = useQuery({ queryKey: ['arena'], queryFn: api.arena, refetchInterval: 15_000 });
+  const [tab, setTab] = useState<ArenaGroupKey>('main');
+  const [selected, setSelected] = useState<number>();
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['arena'] });
+    qc.invalidateQueries({ queryKey: ['arenaAgent'] });
+  };
+  const runAll = useMutation({ mutationFn: api.arenaRunAll, onSuccess: () => setTimeout(refresh, 500) });
+  const pause = useMutation({ mutationFn: api.arenaPause, onSuccess: refresh });
+
+  if (arena.isLoading) return <Skeleton className="h-72 rounded-[18px]" />;
+  if (arena.error) return <ErrorText error={arena.error} />;
+  if (!arena.data) return null;
+  const a = arena.data;
+
+  if (!a.configured) {
+    return (
+      <Surface className="p-6">
+        <h1 className="text-xl font-semibold">Арена</h1>
+        <p className="mt-2 text-muted">Нужны песочница T-Invest (TINKOFF_TOKEN, TINKOFF_SANDBOX=true) и хотя бы одна модель: ключ AI (AI_API_KEY) в backend/.env или запущенная Ollama.</p>
+      </Surface>
+    );
+  }
+
+  const total = a.groups.reduce((n, g) => n + g.agents.length, 0);
+  const anyRunning = a.roundRunning || a.groups.some((g) => g.agents.some((x) => x.running));
+  const group = a.groups.find((g) => g.key === tab) ?? a.groups[0];
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <Segmented value={tab} onChange={setTab} options={a.groups.map((g) => ({ value: g.key, label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` }))} />
+        <span className="flex items-center gap-2 text-sm text-muted">
+          <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink" title="Счета агентов виртуальные: живые цены биржи, комиссия 0,05%, настоящих денег нет">виртуально</span>
+          {a.paused ? <span className="rounded-full bg-hold/20 px-2 py-0.5 text-[11px] font-semibold text-ink">на паузе</span> : <>ходы по будням в {a.runHourMsk}:00 МСК</>}
+          {anyRunning && <span className="text-ai">раунд идёт…</span>}
+        </span>
+        {total > 0 && (
+          <span className="ml-auto flex flex-wrap gap-2">
+            <Button variant="ai" onClick={() => runAll.mutate()} disabled={anyRunning || runAll.isPending || a.paused} title="Все активные агенты всех турниров принимают решение сейчас">
+              <RotateCw className="size-4" aria-hidden /> Раунд сейчас
+            </Button>
+            <Button onClick={() => pause.mutate(!a.paused)} disabled={pause.isPending}>
+              {a.paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />} {a.paused ? 'Продолжить' : 'Пауза'}
+            </Button>
+          </span>
+        )}
+      </div>
+      <ErrorText error={runAll.error ?? pause.error} />
+      {group.agents.length === 0 ? <SetupCard group={group.key} data={a} /> : <GroupView group={group} data={a} selected={selected} onSelect={setSelected} />}
     </div>
   );
 }

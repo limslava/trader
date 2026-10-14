@@ -6,15 +6,16 @@ import { pool } from './db.js';
 import { headlines } from './news.js';
 import { marketNews, urgentEvents } from './feeds.js';
 import { HttpError, TtlCache, todayMsk } from './http.js';
-import { getCandles, INDEX_SECID } from './moex.js';
+import { getCandles, getQuotes, INDEX_SECID } from './moex.js';
 import { screener, type ScreenerRow } from './routes/screener.js';
 import { SECTOR_RU } from './tinkoff.js';
-import { assertSandbox, closeSandboxAccount, openSandboxAccount, placeOrder, portfolio, tradingStatus } from './trading.js';
+import { tradingStatus } from './trading.js';
 
 /**
- * Arena: several autonomous AI agents with different characters, each trading its own sandbox account once a day.
- * The model only proposes orders in JSON; a deterministic risk layer decides what actually gets sent. This is a
- * tournament to learn which style survives the Russian market, not an autopilot for real money (none is wired up).
+ * Arena: autonomous AI agents with different characters and models, each trading a virtual account once a day.
+ * The model only proposes orders in JSON; a deterministic risk layer decides what actually gets filled, at the live
+ * exchange price with the broker's commission. Accounts live in our own tables (the broker sandbox allows only ten
+ * accounts per token). A tournament to learn which style and model survive the Russian market, never real money.
  */
 
 export const RISK = {
@@ -29,7 +30,7 @@ export const RISK = {
 export const RUN_HOUR_MSK = 11; // trading session is open, overnight news is already priced in
 const SNAPSHOT_HOUR_MSK = 19; // after the main session close (18:50)
 
-export type PersonaKey = 'value' | 'momentum' | 'contrarian' | 'dividend' | 'quant';
+export type PersonaKey = 'value' | 'momentum' | 'contrarian' | 'dividend' | 'quant' | 'neutral';
 
 export const PERSONAS: Record<PersonaKey, { name: string; tagline: string; style: string }> = {
   value: {
@@ -56,6 +57,12 @@ export const PERSONAS: Record<PersonaKey, { name: string; tagline: string; style
     style:
       'Ты дивидендный инвестор. Выбираешь компании с высокой и устойчивой дивидендной доходностью, низким долгом и историей выплат. Сравниваешь доходность с ОФЗ и ключевой ставкой: если дивиденды заметно ниже ставки, бумага не интересна. Диверсифицируешь по отраслям. Продаёшь при отмене дивидендов или резком росте долга.',
   },
+  neutral: {
+    name: 'Инвестор',
+    tagline: 'Разумный частный инвестор без перекосов: сам решает, на что смотреть',
+    style:
+      'Ты разумный частный инвестор без заданного стиля. Сам решаешь, что важнее сегодня: оценка бизнеса, тренд, дивиденды, новости или риск. Цель — обыграть индекс Мосбиржи и ОФЗ на горизонте месяцев с умеренным риском: 5–8 позиций, разные отрасли, сделки только при понятной причине.',
+  },
   quant: {
     name: 'Квант',
     tagline: 'Верит цифрам: действует по квант-скору и правилам',
@@ -71,11 +78,13 @@ export type Agent = {
   name: string;
   persona: PersonaKey;
   model: string | null;
-  accountId: string;
+  accountId: string | null;
   startCapital: number;
+  cash: number;
   status: 'active' | 'stopped';
   stopReason: string | null;
   createdAt: string;
+  group: GroupKey;
 };
 
 type AgentRow = {
@@ -83,11 +92,13 @@ type AgentRow = {
   name: string;
   persona: PersonaKey;
   model: string | null;
-  account_id: string;
+  account_id: string | null;
   start_capital: string;
+  cash: string;
   status: 'active' | 'stopped';
   stop_reason: string | null;
   created_at: Date;
+  group_key: GroupKey;
 };
 
 const toAgent = (r: AgentRow): Agent => ({
@@ -97,13 +108,15 @@ const toAgent = (r: AgentRow): Agent => ({
   model: r.model,
   accountId: r.account_id,
   startCapital: Number(r.start_capital),
+  cash: Number(r.cash),
   status: r.status,
   stopReason: r.stop_reason,
   createdAt: r.created_at.toISOString(),
+  group: r.group_key,
 });
 
 export async function listAgents(): Promise<Agent[]> {
-  const { rows } = await pool.query<AgentRow>('SELECT * FROM arena_agents ORDER BY id');
+  const { rows } = await pool.query<AgentRow>('SELECT * FROM arena_agents ORDER BY group_key, id');
   return rows.map(toAgent);
 }
 
@@ -114,29 +127,130 @@ async function getAgent(id: number): Promise<Agent> {
 }
 
 /** Opens one sandbox account per persona and funds it; the user's own account is untouched. */
-export async function setupArena(capital: number, personas: PersonaKey[] = Object.keys(PERSONAS) as PersonaKey[]) {
-  assertSandbox();
-  if ((await listAgents()).length > 0) throw new HttpError(409, 'Арена уже создана');
+export type GroupKey = 'main' | 'models' | 'styles';
+
+export const GROUPS: Record<GroupKey, { title: string; description: string }> = {
+  main: { title: 'Основной', description: 'Пять характеров, модель у каждого своя — можно менять на ходу.' },
+  models: { title: 'Модели', description: 'Один нейтральный характер на каждой модели: кто из моделей лучше рассуждает о рынке.' },
+  styles: { title: 'Стили', description: 'Каждый характер на каждой модели: какой стиль выживает независимо от модели.' },
+};
+
+const STYLE_PERSONAS: PersonaKey[] = ['value', 'momentum', 'contrarian', 'dividend', 'quant'];
+
+const modelShort = (m: string) => m.replace(/^ollama\//, '');
+
+async function createAgent(group: GroupKey, persona: PersonaKey, model: string | null, capital: number): Promise<Agent> {
+  const name = group === 'main' ? PERSONAS[persona].name : `${PERSONAS[persona].name} · ${modelShort(model ?? config.AI_MODEL)}`;
+  const { rows } = await pool.query<AgentRow>(
+    'INSERT INTO arena_agents (name, persona, model, start_capital, cash, group_key) VALUES ($1, $2, $3, $4, $4, $5) RETURNING *',
+    [name, persona, model, capital, group],
+  );
+  const agent = toAgent(rows[0]);
+  await snapshot(agent).catch(() => undefined);
+  return agent;
+}
+
+/**
+ * Opens one sandbox account per agent and funds it; the user's own account is untouched.
+ * main: five personas on the default model; models: the neutral persona on every model; styles: every persona on every model.
+ */
+export async function setupGroup(group: GroupKey, capital: number) {
+  if ((await listAgents()).some((a) => a.group === group)) throw new HttpError(409, `Турнир «${GROUPS[group].title}» уже создан`);
+  const models = await availableModels();
+  if (group !== 'main' && models.length < 2) throw new HttpError(422, 'Для сравнения нужны хотя бы две модели (облачная и/или в Ollama)');
+  const plan: { persona: PersonaKey; model: string | null }[] =
+    group === 'main'
+      ? STYLE_PERSONAS.map((persona) => ({ persona, model: null }))
+      : group === 'models'
+        ? models.map((m) => ({ persona: 'neutral' as PersonaKey, model: m.id }))
+        : STYLE_PERSONAS.flatMap((persona) => models.map((m) => ({ persona, model: m.id })));
   const created: Agent[] = [];
-  for (const persona of personas) {
-    const name = PERSONAS[persona].name;
-    const accountId = await openSandboxAccount(`Arena: ${name}`, capital);
-    const { rows } = await pool.query<AgentRow>(
-      'INSERT INTO arena_agents (name, persona, account_id, start_capital) VALUES ($1, $2, $3, $4) RETURNING *',
-      [name, persona, accountId, capital],
-    );
-    created.push(toAgent(rows[0]));
-    await snapshot(created.at(-1)!).catch(() => undefined);
-  }
+  for (const p of plan) created.push(await createAgent(group, p.persona, p.model, capital));
+  leaderboardCache.clear();
   return created;
 }
 
-/** Closes every agent account and forgets the agents; the journal goes with them. */
-export async function teardownArena() {
-  assertSandbox();
-  for (const a of await listAgents()) await closeSandboxAccount(a.accountId).catch((err) => console.error(`Arena: close ${a.accountId}:`, err));
-  await pool.query('DELETE FROM arena_agents');
+/** Forgets the group's agents; positions, trades and the journal go with them. */
+export async function teardownGroup(group: GroupKey) {
+  await pool.query('DELETE FROM arena_agents WHERE group_key = $1', [group]);
   leaderboardCache.clear();
+}
+
+// --- Virtual accounts ---
+
+export type AgentPortfolio = {
+  total: number;
+  cash: number;
+  availableCash: number;
+  positions: { secid: string; name: string; quantity: number; lots: number; blockedLots: number; averagePrice: number; currentPrice: number | null; value: number | null; expectedYield: number | null }[];
+};
+
+type PositionRow = { secid: string; quantity: number; avg_price: string };
+
+/** Positions valued at live exchange prices; a position with no quote is carried at its average price. */
+export async function agentPortfolio(agent: Agent): Promise<AgentPortfolio> {
+  const [{ rows: cashRows }, { rows }] = await Promise.all([
+    pool.query<{ cash: string }>('SELECT cash FROM arena_agents WHERE id = $1', [agent.id]),
+    pool.query<PositionRow>('SELECT secid, quantity, avg_price FROM arena_positions WHERE agent_id = $1 ORDER BY secid', [agent.id]),
+  ]);
+  const cash = Number(cashRows[0]?.cash ?? agent.cash);
+  const quotes = new Map(rows.length ? (await getQuotes(rows.map((r) => r.secid)).catch(() => [])).map((q) => [q.secid, q]) : []);
+  const positions = rows.map((r) => {
+    const q = quotes.get(r.secid);
+    const avg = Number(r.avg_price);
+    const price = q?.price ?? null;
+    const value = (price ?? avg) * r.quantity;
+    return {
+      secid: r.secid,
+      name: q?.shortname ?? r.secid,
+      quantity: r.quantity,
+      lots: q?.lotSize ? Math.floor(r.quantity / q.lotSize) : r.quantity,
+      blockedLots: 0,
+      averagePrice: avg,
+      currentPrice: price,
+      value,
+      expectedYield: value - avg * r.quantity,
+    };
+  });
+  const total = cash + positions.reduce((s, p) => s + (p.value ?? 0), 0);
+  return { total, cash, availableCash: cash, positions: positions.sort((a, b) => (b.value ?? 0) - (a.value ?? 0)) };
+}
+
+/** Fills a market order instantly at the given price; cash and the position change in one transaction. */
+export async function fillVirtual(agent: Agent, runId: number | null, secid: string, direction: 'buy' | 'sell', quantity: number, price: number) {
+  const amount = quantity * price;
+  const commission = amount * RISK.commission;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (direction === 'buy') {
+      const { rows } = await client.query<{ cash: string }>('UPDATE arena_agents SET cash = cash - $2 WHERE id = $1 RETURNING cash', [agent.id, amount + commission]);
+      if (Number(rows[0].cash) < 0) throw new HttpError(422, 'Не хватает денег');
+      await client.query(
+        `INSERT INTO arena_positions (agent_id, secid, quantity, avg_price) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (agent_id, secid) DO UPDATE
+           SET avg_price = (arena_positions.avg_price * arena_positions.quantity + $4 * $3) / (arena_positions.quantity + $3),
+               quantity = arena_positions.quantity + $3`,
+        [agent.id, secid, quantity, price],
+      );
+    } else {
+      const { rows } = await client.query<{ quantity: number }>('UPDATE arena_positions SET quantity = quantity - $3 WHERE agent_id = $1 AND secid = $2 AND quantity >= $3 RETURNING quantity', [agent.id, secid, quantity]);
+      if (!rows[0]) throw new HttpError(422, 'Нет такого количества бумаг');
+      if (rows[0].quantity === 0) await client.query('DELETE FROM arena_positions WHERE agent_id = $1 AND secid = $2', [agent.id, secid]);
+      await client.query('UPDATE arena_agents SET cash = cash + $2 WHERE id = $1', [agent.id, amount - commission]);
+    }
+    await client.query(
+      'INSERT INTO arena_trades (agent_id, run_id, secid, direction, quantity, price, amount, commission) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+      [agent.id, runId, secid, direction, quantity, price, amount, commission],
+    );
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+  return { amount, commission };
 }
 
 /** Models an agent may use: the cloud default plus whatever Ollama has installed. */
@@ -259,22 +373,18 @@ export type ExecutedOrder = {
   amountRub: number;
   status: 'filled' | 'rejected' | 'failed';
   reason: string;
-  orderId?: string;
 };
 
-async function tradesThisWeek(accountId: string): Promise<number> {
-  const { rows } = await pool.query<{ n: string }>(
-    `SELECT count(*) AS n FROM trade_log WHERE account_id = $1 AND status = 'EXECUTION_REPORT_STATUS_FILL' AND created_at > now() - interval '7 days'`,
-    [accountId],
-  );
+async function tradesThisWeek(agentId: number): Promise<number> {
+  const { rows } = await pool.query<{ n: string }>(`SELECT count(*) AS n FROM arena_trades WHERE agent_id = $1 AND at > now() - interval '7 days'`, [agentId]);
   return Number(rows[0]?.n ?? 0);
 }
 
-async function applyRisk(agent: Agent, universe: Universe, proposed: ProposedOrder[]): Promise<ExecutedOrder[]> {
-  const pf = await portfolio(agent.accountId);
+async function applyRisk(agent: Agent, runId: number, universe: Universe, proposed: ProposedOrder[]): Promise<ExecutedOrder[]> {
+  const pf = await agentPortfolio(agent);
   const equity = pf.total ?? pf.cash;
   let cash = pf.availableCash;
-  let weekTrades = await tradesThisWeek(agent.accountId);
+  let weekTrades = await tradesThisWeek(agent.id);
   const known = new Set(universe.instruments.map((i) => i.secid));
   const out: ExecutedOrder[] = [];
   let accepted = 0;
@@ -328,14 +438,11 @@ async function applyRisk(agent: Agent, universe: Universe, proposed: ProposedOrd
     }
     const amountRub = lots * lotPrice;
     try {
-      const order = await placeOrder({ secid, direction: p.direction, lots, type: 'market' }, agent.accountId);
-      const filled = order.status === 'EXECUTION_REPORT_STATUS_FILL';
-      out.push({ ...base, lots, amountRub, status: filled ? 'filled' : 'failed', reason: filled ? p.reason : order.statusText, orderId: order.orderId });
-      if (filled) {
-        accepted++;
-        weekTrades++;
-        cash += p.direction === 'buy' ? -amountRub * (1 + RISK.commission) : amountRub * (1 - RISK.commission);
-      }
+      await fillVirtual(agent, runId, secid, p.direction, lots * status.lot, status.lastPrice);
+      out.push({ ...base, lots, amountRub, status: 'filled', reason: p.reason });
+      accepted++;
+      weekTrades++;
+      cash += p.direction === 'buy' ? -amountRub * (1 + RISK.commission) : amountRub * (1 - RISK.commission);
     } catch (err) {
       out.push({ ...base, lots, amountRub, status: 'failed', reason: err instanceof Error ? err.message : String(err) });
     }
@@ -346,11 +453,11 @@ async function applyRisk(agent: Agent, universe: Universe, proposed: ProposedOrd
 // --- Runs ---
 
 async function snapshot(agent: Agent) {
-  const [pf, market] = await Promise.all([portfolio(agent.accountId), getMarketContext().catch(() => null)]);
+  const [pf, market] = await Promise.all([agentPortfolio(agent), getMarketContext().catch(() => null)]);
   await pool.query(
     `INSERT INTO arena_snapshots (agent_id, day, equity, cash, imoex) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (agent_id, day) DO UPDATE SET equity = EXCLUDED.equity, cash = EXCLUDED.cash, imoex = EXCLUDED.imoex`,
-    [agent.id, todayMsk(), pf.total ?? pf.cash, pf.cash, market?.imoex?.value ?? null],
+    [agent.id, todayMsk(), pf.total, pf.cash, market?.imoex?.value ?? null],
   );
   leaderboardCache.clear();
   return pf;
@@ -364,14 +471,13 @@ async function peakEquity(agent: Agent): Promise<number> {
 export const agentRunning = (id: number) => isRunning(`arena:${id}`);
 
 /** One decision session for one agent: data package → model → risk layer → journal. */
-export function runAgent(id: number) {
+export function runAgent(id: number, shared?: Universe) {
   return guarded(`arena:${id}`, async () => {
-    assertSandbox();
     const agent = await getAgent(id);
     if (agent.status !== 'active') throw new HttpError(409, 'Агент остановлен');
 
-    const pf = await portfolio(agent.accountId);
-    const equity = pf.total ?? pf.cash;
+    const pf = await agentPortfolio(agent);
+    const equity = pf.total;
     const peak = await peakEquity(agent);
     const drawdownPct = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
     if (drawdownPct >= RISK.drawdownStopPct) {
@@ -385,12 +491,12 @@ export function runAgent(id: number) {
     const runId = rows[0].id;
     try {
       const [universe, past, weekTrades] = await Promise.all([
-        buildUniverse(),
+        shared ?? buildUniverse(),
         pool.query<{ started_at: Date; market_view: string; reasoning: string; executed: ExecutedOrder[] }>(
           `SELECT started_at, market_view, reasoning, executed FROM arena_runs WHERE agent_id = $1 AND status = 'done' ORDER BY started_at DESC LIMIT 5`,
           [id],
         ),
-        tradesThisWeek(agent.accountId),
+        tradesThisWeek(agent.id),
       ]);
       const user = JSON.stringify({
         today: universe.date,
@@ -421,7 +527,7 @@ export function runAgent(id: number) {
         instruments: universe.instruments,
       });
       const decision = await askJson(systemPrompt(agent), user, decisionSchema, model);
-      const executed = await applyRisk(agent, universe, decision.orders);
+      const executed = await applyRisk(agent, runId, universe, decision.orders);
       await pool.query(
         `UPDATE arena_runs SET status = 'done', finished_at = now(), market_view = $2, reasoning = $3, proposed = $4, executed = $5 WHERE id = $1`,
         [runId, decision.marketView, decision.reasoning, JSON.stringify(decision.orders), JSON.stringify(executed)],
@@ -447,9 +553,13 @@ export async function runAll(): Promise<void> {
   if (roundInFlight) throw new HttpError(409, 'Раунд уже идёт');
   roundInFlight = true;
   try {
-    for (const a of await listAgents()) {
-      if (a.status !== 'active' || agentRunning(a.id)) continue;
-      await runAgent(a.id).catch((err) => console.error(`Arena: agent ${a.name} failed:`, err instanceof Error ? err.message : err));
+    // Same data package for everyone, and agents grouped by model so Ollama does not reload weights every turn.
+    const universe = await buildUniverse();
+    const agents = (await listAgents())
+      .filter((a) => a.status === 'active' && !agentRunning(a.id))
+      .sort((x, y) => (x.model ?? '').localeCompare(y.model ?? ''));
+    for (const a of agents) {
+      await runAgent(a.id, universe).catch((err) => console.error(`Arena: agent ${a.name} failed:`, err instanceof Error ? err.message : err));
     }
   } finally {
     roundInFlight = false;
@@ -502,67 +612,75 @@ export type LeaderboardRow = Agent & {
   effectiveModel: string;
 };
 
-export type Leaderboard = {
-  paused: boolean;
-  roundRunning: boolean;
+export type LeaderboardGroup = {
+  key: GroupKey;
+  title: string;
+  description: string;
   since: string | null;
   benchmarks: { imoexPct: number | null; ofzPct: number | null };
   agents: LeaderboardRow[];
+};
+
+export type Leaderboard = {
+  paused: boolean;
+  roundRunning: boolean;
+  groups: LeaderboardGroup[];
 };
 
 const leaderboardCache = new TtlCache<Leaderboard>(60_000);
 
 export function leaderboard(): Promise<Leaderboard> {
   return leaderboardCache.get('lb', async () => {
-    const agents = await listAgents();
-    const paused = await isPaused();
-    if (agents.length === 0) return { paused, roundRunning: roundInFlight, since: null, benchmarks: { imoexPct: null, ofzPct: null }, agents: [] };
-    const since = agents.reduce((m, a) => (a.createdAt < m ? a.createdAt : m), agents[0].createdAt);
-    const benchmarks = await benchmarkSince(since).catch(() => ({ imoexPct: null, ofzPct: null }));
-
-    const rows = await Promise.all(
-      agents.map(async (a): Promise<LeaderboardRow> => {
-        const [pf, snaps, stats, last] = await Promise.all([
-          portfolio(a.accountId).catch(() => null),
-          pool.query<{ day: string; equity: string }>(`SELECT to_char(day, 'YYYY-MM-DD') AS day, equity FROM arena_snapshots WHERE agent_id = $1 ORDER BY day`, [a.id]),
-          pool.query<{ n: string; fees: string | null }>(
-            `SELECT count(*) AS n,
-                    sum(coalesce((response->'executedCommission'->>'units')::numeric, 0) + coalesce((response->'executedCommission'->>'nano')::numeric, 0) / 1e9) AS fees
-             FROM trade_log WHERE account_id = $1 AND status = 'EXECUTION_REPORT_STATUS_FILL'`,
-            [a.accountId],
-          ),
-          pool.query<{ started_at: Date }>('SELECT started_at FROM arena_runs WHERE agent_id = $1 ORDER BY started_at DESC LIMIT 1', [a.id]),
-        ]);
-        const equity = pf?.total ?? pf?.cash ?? Number(snaps.rows.at(-1)?.equity ?? a.startCapital);
-        const curve = snaps.rows.map((s) => ({ day: s.day, equity: Number(s.equity) }));
-        const series = [a.startCapital, ...curve.map((c) => c.equity), equity];
-        let peak = 0;
-        let maxDd = 0;
-        for (const v of series) {
-          peak = Math.max(peak, v);
-          maxDd = Math.max(maxDd, peak ? ((peak - v) / peak) * 100 : 0);
-        }
-        return {
-          ...a,
-          tagline: PERSONAS[a.persona]?.tagline ?? '',
-          equity,
-          cash: pf?.cash ?? 0,
-          positions: pf?.positions.length ?? 0,
-          returnPct: Number((((equity - a.startCapital) / a.startCapital) * 100).toFixed(2)),
-          maxDrawdownPct: Number(maxDd.toFixed(2)),
-          sharpe: sharpe(curve.map((c) => c.equity)),
-          trades: Number(stats.rows[0]?.n ?? 0),
-          feesRub: Number(stats.rows[0]?.fees ?? 0),
-          running: agentRunning(a.id),
-          lastRunAt: last.rows[0]?.started_at.toISOString() ?? null,
-          curve,
-          effectiveModel: a.model ?? config.AI_MODEL,
-        };
-      }),
-    );
-    rows.sort((x, y) => y.returnPct - x.returnPct);
-    return { paused, roundRunning: roundInFlight, since, benchmarks, agents: rows };
+    const [agents, paused] = await Promise.all([listAgents(), isPaused()]);
+    const rows = await Promise.all(agents.map(leaderboardRow));
+    const groups: LeaderboardGroup[] = [];
+    for (const key of Object.keys(GROUPS) as GroupKey[]) {
+      const members = rows.filter((r) => r.group === key).sort((x, y) => y.returnPct - x.returnPct);
+      const since = members.length ? members.reduce((m, a) => (a.createdAt < m ? a.createdAt : m), members[0].createdAt) : null;
+      groups.push({
+        key,
+        ...GROUPS[key],
+        since,
+        benchmarks: since ? await benchmarkSince(since).catch(() => ({ imoexPct: null, ofzPct: null })) : { imoexPct: null, ofzPct: null },
+        agents: members,
+      });
+    }
+    return { paused, roundRunning: roundInFlight, groups };
   });
+}
+
+async function leaderboardRow(a: Agent): Promise<LeaderboardRow> {
+  const [pf, snaps, stats, last] = await Promise.all([
+    agentPortfolio(a).catch(() => null),
+    pool.query<{ day: string; equity: string }>(`SELECT to_char(day, 'YYYY-MM-DD') AS day, equity FROM arena_snapshots WHERE agent_id = $1 ORDER BY day`, [a.id]),
+    pool.query<{ n: string; fees: string | null }>('SELECT count(*) AS n, sum(commission) AS fees FROM arena_trades WHERE agent_id = $1', [a.id]),
+    pool.query<{ started_at: Date }>('SELECT started_at FROM arena_runs WHERE agent_id = $1 ORDER BY started_at DESC LIMIT 1', [a.id]),
+  ]);
+  const equity = pf?.total ?? Number(snaps.rows.at(-1)?.equity ?? a.startCapital);
+  const curve = snaps.rows.map((s) => ({ day: s.day, equity: Number(s.equity) }));
+  const series = [a.startCapital, ...curve.map((c) => c.equity), equity];
+  let peak = 0;
+  let maxDd = 0;
+  for (const v of series) {
+    peak = Math.max(peak, v);
+    maxDd = Math.max(maxDd, peak ? ((peak - v) / peak) * 100 : 0);
+  }
+  return {
+    ...a,
+    tagline: PERSONAS[a.persona]?.tagline ?? '',
+    equity,
+    cash: pf?.cash ?? 0,
+    positions: pf?.positions.length ?? 0,
+    returnPct: Number((((equity - a.startCapital) / a.startCapital) * 100).toFixed(2)),
+    maxDrawdownPct: Number(maxDd.toFixed(2)),
+    sharpe: sharpe(curve.map((c) => c.equity)),
+    trades: Number(stats.rows[0]?.n ?? 0),
+    feesRub: Number(stats.rows[0]?.fees ?? 0),
+    running: agentRunning(a.id),
+    lastRunAt: last.rows[0]?.started_at.toISOString() ?? null,
+    curve,
+    effectiveModel: a.model ?? config.AI_MODEL,
+  };
 }
 
 /** Annualized Sharpe from daily equity points; needs at least a week of data to mean anything. */
@@ -594,7 +712,7 @@ async function benchmarkSince(since: string) {
 export async function agentDetail(id: number) {
   const agent = await getAgent(id);
   const [pf, runs, snaps] = await Promise.all([
-    portfolio(agent.accountId).catch(() => null),
+    agentPortfolio(agent).catch(() => null),
     pool.query<{
       id: number;
       started_at: Date;

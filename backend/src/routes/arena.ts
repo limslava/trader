@@ -6,6 +6,7 @@ import {
   availableModels,
   setAgentModel,
   leaderboard,
+  GROUPS,
   PERSONAS,
   RISK,
   RUN_HOUR_MSK,
@@ -14,12 +15,11 @@ import {
   runAll,
   setAgentStatus,
   setPaused,
-  setupArena,
-  teardownArena,
+  setupGroup,
+  teardownGroup,
 } from '../arena.js';
 import { HttpError } from '../http.js';
-import { isSandbox, tinkoffConfigured } from '../tinkoff.js';
-import { assertSandbox } from '../trading.js';
+import { tinkoffConfigured } from '../tinkoff.js';
 
 export const arenaRouter = Router();
 
@@ -28,7 +28,7 @@ const idParam = (v: unknown) => z.coerce.number().int().positive().parse(v);
 arenaRouter.get('/', async (_req, res) => {
   const models = await availableModels();
   res.json({
-    configured: tinkoffConfigured() && isSandbox && models.length > 0,
+    configured: tinkoffConfigured() && models.length > 0,
     models,
     personas: Object.entries(PERSONAS).map(([key, p]) => ({ key, name: p.name, tagline: p.tagline })),
     risk: RISK,
@@ -37,24 +37,21 @@ arenaRouter.get('/', async (_req, res) => {
   });
 });
 
-arenaRouter.use((_req, _res, next) => {
-  assertSandbox();
-  next();
-});
-
 arenaRouter.put('/agents/:id/model', async (req, res) => {
   const { model } = z.object({ model: z.string().min(1).max(100).nullable() }).parse(req.body);
   await setAgentModel(idParam(req.params.id), model);
   res.json({ ok: true });
 });
 
-arenaRouter.post('/setup', async (req, res) => {
+const groupSchema = z.enum(Object.keys(GROUPS) as [keyof typeof GROUPS, ...(keyof typeof GROUPS)[]]);
+
+arenaRouter.post('/groups/:group', async (req, res) => {
   const { capital } = z.object({ capital: z.coerce.number().min(10_000).max(30_000_000).default(100_000) }).parse(req.body ?? {});
-  res.json(await setupArena(capital));
+  res.json(await setupGroup(groupSchema.parse(req.params.group), capital));
 });
 
-arenaRouter.delete('/', async (_req, res) => {
-  await teardownArena();
+arenaRouter.delete('/groups/:group', async (req, res) => {
+  await teardownGroup(groupSchema.parse(req.params.group));
   res.json({ ok: true });
 });
 

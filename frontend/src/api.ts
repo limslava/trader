@@ -315,11 +315,12 @@ export type ArenaAgent = {
   name: string;
   persona: string;
   model: string | null;
-  accountId: string;
+  accountId: string | null;
   startCapital: number;
   status: 'active' | 'stopped';
   stopReason: string | null;
   createdAt: string;
+  group: ArenaGroupKey;
   tagline: string;
   equity: number;
   cash: number;
@@ -335,6 +336,17 @@ export type ArenaAgent = {
   effectiveModel: string;
 };
 
+export type ArenaGroupKey = 'main' | 'models' | 'styles';
+
+export type ArenaGroup = {
+  key: ArenaGroupKey;
+  title: string;
+  description: string;
+  since: string | null;
+  benchmarks: { imoexPct: number | null; ofzPct: number | null };
+  agents: ArenaAgent[];
+};
+
 export type Arena = {
   configured: boolean;
   models: { id: string; label: string; local: boolean }[];
@@ -343,9 +355,7 @@ export type Arena = {
   runHourMsk: number;
   paused: boolean;
   roundRunning: boolean;
-  since: string | null;
-  benchmarks: { imoexPct: number | null; ofzPct: number | null };
-  agents: ArenaAgent[];
+  groups: ArenaGroup[];
 };
 
 export type ArenaOrder = {
@@ -463,8 +473,8 @@ export const api = {
   operations: () => request<Operation[]>('GET', '/trading/operations'),
 
   arena: () => request<Arena>('GET', '/arena'),
-  arenaSetup: (capital: number) => request('POST', '/arena/setup', { capital }),
-  arenaTeardown: () => request('DELETE', '/arena'),
+  arenaSetup: (group: ArenaGroupKey, capital: number) => request('POST', `/arena/groups/${group}`, { capital }),
+  arenaTeardown: (group: ArenaGroupKey) => request('DELETE', `/arena/groups/${group}`),
   arenaPause: (paused: boolean) => request('POST', paused ? '/arena/pause' : '/arena/resume'),
   arenaRunAll: () => request('POST', '/arena/run'),
   arenaAgent: (id: number) => request<ArenaAgentDetail>('GET', `/arena/agents/${id}`),
