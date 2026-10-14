@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { askJson, guarded, isRunning } from './ai.js';
+import { askJson, guarded, isRunning, localModels } from './ai.js';
+import { config } from './config.js';
 import { getMarketContext } from './context.js';
 import { pool } from './db.js';
 import { headlines } from './news.js';
@@ -135,6 +136,22 @@ export async function teardownArena() {
   assertSandbox();
   for (const a of await listAgents()) await closeSandboxAccount(a.accountId).catch((err) => console.error(`Arena: close ${a.accountId}:`, err));
   await pool.query('DELETE FROM arena_agents');
+  leaderboardCache.clear();
+}
+
+/** Models an agent may use: the cloud default plus whatever Ollama has installed. */
+export async function availableModels() {
+  const cloud = config.AI_API_KEY ? [{ id: config.AI_MODEL, label: `${config.AI_MODEL} (облако)`, local: false }] : [];
+  const local = (await localModels()).map((m) => ({ id: m.id, label: `${m.id.slice('ollama/'.length)} (локально, ${m.sizeGb} ГБ)`, local: true }));
+  return [...cloud, ...local];
+}
+
+export async function setAgentModel(id: number, model: string | null) {
+  if (model !== null) {
+    const ok = (await availableModels()).some((m) => m.id === model);
+    if (!ok) throw new HttpError(422, 'Такой модели нет: проверьте, что она скачана в Ollama');
+  }
+  await pool.query('UPDATE arena_agents SET model = $2 WHERE id = $1', [id, model]);
   leaderboardCache.clear();
 }
 
@@ -363,7 +380,8 @@ export function runAgent(id: number) {
       throw new HttpError(409, reason);
     }
 
-    const { rows } = await pool.query<{ id: number }>('INSERT INTO arena_runs (agent_id, equity_before) VALUES ($1, $2) RETURNING id', [id, equity]);
+    const model = agent.model ?? config.AI_MODEL;
+    const { rows } = await pool.query<{ id: number }>('INSERT INTO arena_runs (agent_id, equity_before, model) VALUES ($1, $2, $3) RETURNING id', [id, equity, model]);
     const runId = rows[0].id;
     try {
       const [universe, past, weekTrades] = await Promise.all([
@@ -402,7 +420,7 @@ export function runAgent(id: number) {
         companyEvents: universe.events,
         instruments: universe.instruments,
       });
-      const decision = await askJson(systemPrompt(agent), user, decisionSchema, agent.model ?? undefined);
+      const decision = await askJson(systemPrompt(agent), user, decisionSchema, model);
       const executed = await applyRisk(agent, universe, decision.orders);
       await pool.query(
         `UPDATE arena_runs SET status = 'done', finished_at = now(), market_view = $2, reasoning = $3, proposed = $4, executed = $5 WHERE id = $1`,
@@ -421,10 +439,20 @@ export function runAgent(id: number) {
 }
 
 /** Runs every active agent one after another (gentle on MOEX and the AI budget); errors are per agent. */
+let roundInFlight = false;
+export const roundRunning = () => roundInFlight;
+
 export async function runAll(): Promise<void> {
-  for (const a of await listAgents()) {
-    if (a.status !== 'active' || agentRunning(a.id)) continue;
-    await runAgent(a.id).catch((err) => console.error(`Arena: agent ${a.name} failed:`, err instanceof Error ? err.message : err));
+  // A double click on "run now" (or the scheduler firing during a manual round) must not start a second loop.
+  if (roundInFlight) throw new HttpError(409, 'Раунд уже идёт');
+  roundInFlight = true;
+  try {
+    for (const a of await listAgents()) {
+      if (a.status !== 'active' || agentRunning(a.id)) continue;
+      await runAgent(a.id).catch((err) => console.error(`Arena: agent ${a.name} failed:`, err instanceof Error ? err.message : err));
+    }
+  } finally {
+    roundInFlight = false;
   }
 }
 
@@ -444,7 +472,7 @@ export function scheduleArena() {
     try {
       if (msk.getUTCHours() === RUN_HOUR_MSK && lastRunDay !== day) {
         lastRunDay = day;
-        if (!(await isPaused())) await runAll();
+        if (!(await isPaused())) await runAll().catch(() => undefined);
       } else if (msk.getUTCHours() === SNAPSHOT_HOUR_MSK && lastSnapDay !== day) {
         lastSnapDay = day;
         await snapshotAll();
@@ -470,10 +498,13 @@ export type LeaderboardRow = Agent & {
   running: boolean;
   lastRunAt: string | null;
   curve: { day: string; equity: number }[];
+  /** Model actually used on the next run (agent's own or the cloud default). */
+  effectiveModel: string;
 };
 
 export type Leaderboard = {
   paused: boolean;
+  roundRunning: boolean;
   since: string | null;
   benchmarks: { imoexPct: number | null; ofzPct: number | null };
   agents: LeaderboardRow[];
@@ -485,7 +516,7 @@ export function leaderboard(): Promise<Leaderboard> {
   return leaderboardCache.get('lb', async () => {
     const agents = await listAgents();
     const paused = await isPaused();
-    if (agents.length === 0) return { paused, since: null, benchmarks: { imoexPct: null, ofzPct: null }, agents: [] };
+    if (agents.length === 0) return { paused, roundRunning: roundInFlight, since: null, benchmarks: { imoexPct: null, ofzPct: null }, agents: [] };
     const since = agents.reduce((m, a) => (a.createdAt < m ? a.createdAt : m), agents[0].createdAt);
     const benchmarks = await benchmarkSince(since).catch(() => ({ imoexPct: null, ofzPct: null }));
 
@@ -525,11 +556,12 @@ export function leaderboard(): Promise<Leaderboard> {
           running: agentRunning(a.id),
           lastRunAt: last.rows[0]?.started_at.toISOString() ?? null,
           curve,
+          effectiveModel: a.model ?? config.AI_MODEL,
         };
       }),
     );
     rows.sort((x, y) => y.returnPct - x.returnPct);
-    return { paused, since, benchmarks, agents: rows };
+    return { paused, roundRunning: roundInFlight, since, benchmarks, agents: rows };
   });
 }
 
@@ -569,6 +601,7 @@ export async function agentDetail(id: number) {
       finished_at: Date | null;
       status: string;
       error: string | null;
+      model: string | null;
       equity_before: string | null;
       market_view: string | null;
       reasoning: string | null;
@@ -589,6 +622,7 @@ export async function agentDetail(id: number) {
       finishedAt: r.finished_at?.toISOString() ?? null,
       status: r.status,
       error: r.error,
+      model: r.model,
       equityBefore: r.equity_before === null ? null : Number(r.equity_before),
       marketView: r.market_view,
       reasoning: r.reasoning,

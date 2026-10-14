@@ -134,7 +134,11 @@ function buildUserPrompt(
   });
 }
 
+/** Local models are addressed as "ollama/<name>" and go to Ollama's native API; everything else to the cloud provider. */
+export const isLocalModel = (model: string) => model.startsWith('ollama/');
+
 async function chat(messages: { role: string; content: string }[], model = config.AI_MODEL): Promise<string> {
+  if (isLocalModel(model)) return chatOllama(messages, model.slice('ollama/'.length));
   const res = await fetch(`${config.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.AI_API_KEY}` },
@@ -158,6 +162,49 @@ async function chat(messages: { role: string; content: string }[], model = confi
   return content;
 }
 
+/**
+ * Ollama's native chat API: JSON mode, thinking disabled (qwen3 would otherwise spend its budget on <think>),
+ * and a context window large enough for the Arena data package. A 12–14B model on a laptop needs minutes.
+ */
+async function chatOllama(messages: { role: string; content: string }[], model: string): Promise<string> {
+  const res = await fetch(`${config.OLLAMA_URL.replace(/\/$/, '')}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      messages,
+      stream: false,
+      format: 'json',
+      think: false,
+      options: { temperature: 0.2, num_ctx: 32768, num_predict: 4000 },
+    }),
+    signal: AbortSignal.timeout(15 * 60_000),
+  }).catch((err) => {
+    throw new HttpError(503, `Ollama недоступна (${config.OLLAMA_URL}): ${err instanceof Error ? err.message : String(err)}`);
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`Ollama error ${res.status}: ${body.slice(0, 500)}`);
+    throw new HttpError(502, `Ollama вернула ошибку ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { message?: { content?: string } };
+  const content = data.message?.content;
+  if (!content) throw new HttpError(502, 'Ollama вернула пустой ответ');
+  return content;
+}
+
+/** Models installed in the local Ollama, as "ollama/<name>"; empty when Ollama is not running. */
+export async function localModels(): Promise<{ id: string; sizeGb: number }[]> {
+  try {
+    const res = await fetch(`${config.OLLAMA_URL.replace(/\/$/, '')}/api/tags`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { models?: { name: string; size: number }[] };
+    return (data.models ?? []).map((m) => ({ id: `ollama/${m.name}`, sizeGb: Number((m.size / 1e9).toFixed(1)) }));
+  } catch {
+    return [];
+  }
+}
+
 function parseJson<T>(content: string, schema: z.ZodType<T>): T {
   // Strip a ```json fence if the model added one despite instructions.
   const json = content.replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '');
@@ -177,7 +224,7 @@ export function guarded<T>(key: string, job: () => Promise<T>): Promise<T> {
 
 /** Calls the model expecting JSON matching `schema`, with one repair attempt on invalid output. */
 export async function askJson<T>(system: string, user: string, schema: z.ZodType<T>, model?: string): Promise<T> {
-  if (!aiConfigured()) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
+  if (!aiConfigured() && !(model && isLocalModel(model))) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
   if (!aiBudget.take()) throw new HttpError(429, 'Слишком много AI-запросов за минуту, попробуйте чуть позже');
 
   const messages = [

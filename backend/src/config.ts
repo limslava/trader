@@ -14,6 +14,8 @@ const schema = z.object({
   AI_API_KEY: z.string().default(''),
   AI_BASE_URL: z.string().url().default('https://api.deepseek.com'),
   AI_MODEL: z.string().default('deepseek-chat'),
+  // Local Ollama for Arena agents (model names are written as "ollama/<name>"). No key needed.
+  OLLAMA_URL: z.string().url().default('http://localhost:11434'),
 
   // T-Invest API token (Т-Инвестиции): dividends, fundamentals, sandbox trading. Optional.
   TINKOFF_TOKEN: z.string().default(''),

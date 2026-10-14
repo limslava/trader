@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause, Play, RotateCw, Square, Trash2, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { api, type ArenaAgent, type ArenaRun } from '../api';
+import { api, type Arena as ArenaData, type ArenaAgent, type ArenaRun } from '../api';
 import { Sparkline } from '../components/Sparkline';
 import { SandboxBadge } from '../components/TradeTicket';
 import { Button, Delta, Empty, ErrorText, Monogram, Skeleton, Surface, Tabs } from '../components/ui';
@@ -20,6 +20,8 @@ const PERSONA_TONE: Record<string, string> = {
   dividend: 'bg-hold/20 text-ink',
   quant: 'bg-ink/10 text-ink',
 };
+
+const modelName = (m: string | null | undefined) => (m ? m.replace(/^ollama\//, '') : '');
 
 function Rank({ n }: { n: number }) {
   const medal = ['🥇', '🥈', '🥉'][n - 1];
@@ -56,6 +58,7 @@ function RunEntry({ run }: { run: ArenaRun }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
         <span className="font-semibold text-ink">{dateTime(run.startedAt)}</span>
         {run.equityBefore != null && <span>счёт {money(run.equityBefore)}</span>}
+        {run.model && <span className="rounded-full bg-surface-2 px-2 py-0.5 font-medium">{modelName(run.model)}</span>}
         {run.status === 'running' && <span className="text-ai">принимает решение…</span>}
         {run.status === 'failed' && <span className="text-down">ошибка: {run.error}</span>}
         {run.status === 'done' && filled.length === 0 && <span>без сделок</span>}
@@ -88,11 +91,12 @@ function RunEntry({ run }: { run: ArenaRun }) {
   );
 }
 
-function AgentPanel({ id, onChanged }: { id: number; onChanged: () => void }) {
+function AgentPanel({ id, models, onChanged }: { id: number; models: ArenaData['models']; onChanged: () => void }) {
   const q = useQuery({ queryKey: ['arenaAgent', id], queryFn: () => api.arenaAgent(id), refetchInterval: 10_000 });
   const [tab, setTab] = useState<'journal' | 'positions' | 'style'>('journal');
   const run = useMutation({ mutationFn: () => api.arenaRunAgent(id), onSuccess: () => setTimeout(onChanged, 500) });
   const status = useMutation({ mutationFn: (s: 'stop' | 'resume') => api.arenaAgentStatus(id, s), onSuccess: onChanged });
+  const setModel = useMutation({ mutationFn: (m: string | null) => api.arenaSetModel(id, m), onSuccess: onChanged });
 
   if (q.isLoading) return <Skeleton className="h-64 rounded-[18px]" />;
   if (q.error) return <ErrorText error={q.error} />;
@@ -110,7 +114,22 @@ function AgentPanel({ id, onChanged }: { id: number; onChanged: () => void }) {
           <h2 className="text-base font-semibold tracking-tight">{agent.name}</h2>
           <p className="text-sm text-muted">{agent.tagline}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={agent.model ?? ''}
+            onChange={(e) => setModel.mutate(e.target.value || null)}
+            disabled={agent.running || setModel.isPending}
+            aria-label="Модель агента"
+            title="Какая модель принимает решения за этого агента"
+            className="h-8 max-w-56 rounded-full border border-line bg-surface px-3 text-xs font-semibold outline-none"
+          >
+            <option value="">по умолчанию</option>
+            {models.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
           <StatusPill agent={agent} />
           <Button size="sm" onClick={() => run.mutate()} disabled={agent.running || agent.status !== 'active' || run.isPending} title="Принять решение прямо сейчас">
             <RotateCw className="size-3.5" aria-hidden /> Ход
@@ -126,7 +145,7 @@ function AgentPanel({ id, onChanged }: { id: number; onChanged: () => void }) {
           )}
         </div>
       </div>
-      <ErrorText error={run.error ?? status.error} />
+      <ErrorText error={run.error ?? status.error ?? setModel.error} />
       {agent.stopReason && agent.status === 'stopped' && <p className="mt-2 text-sm text-down">{agent.stopReason}</p>}
 
       <div className="mt-4">
@@ -260,7 +279,7 @@ export function Arena() {
     return (
       <Surface className="p-6">
         <h1 className="text-xl font-semibold">Арена</h1>
-        <p className="mt-2 text-muted">Нужны песочница T-Invest (TINKOFF_TOKEN, TINKOFF_SANDBOX=true) и ключ AI (AI_API_KEY) в backend/.env.</p>
+        <p className="mt-2 text-muted">Нужны песочница T-Invest (TINKOFF_TOKEN, TINKOFF_SANDBOX=true) и хотя бы одна модель: ключ AI (AI_API_KEY) в backend/.env или запущенная Ollama.</p>
       </Surface>
     );
   }
@@ -268,7 +287,7 @@ export function Arena() {
 
   const current = selected ?? a.agents[0].id;
   const leader = a.agents[0];
-  const anyRunning = a.agents.some((x) => x.running);
+  const anyRunning = a.roundRunning || a.agents.some((x) => x.running);
 
   return (
     <div className="space-y-5">
@@ -349,7 +368,9 @@ export function Arena() {
                     <span className={`grid size-8 shrink-0 place-items-center rounded-xl text-sm font-bold ${PERSONA_TONE[ag.persona] ?? 'bg-surface-2'}`}>{ag.name.slice(0, 1)}</span>
                     <span className="min-w-0">
                       <span className="block font-semibold">{ag.name}</span>
-                      <span className="block truncate text-xs text-muted">{ag.tagline}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {ag.tagline} · <span className="font-medium">{modelName(ag.effectiveModel)}</span>
+                      </span>
                     </span>
                   </span>
                 </td>
@@ -373,7 +394,7 @@ export function Arena() {
         </table>
       </Surface>
 
-      <AgentPanel id={current} onChanged={refresh} />
+      <AgentPanel id={current} models={a.models} onChanged={refresh} />
     </div>
   );
 }

@@ -332,14 +332,17 @@ export type ArenaAgent = {
   running: boolean;
   lastRunAt: string | null;
   curve: { day: string; equity: number }[];
+  effectiveModel: string;
 };
 
 export type Arena = {
   configured: boolean;
+  models: { id: string; label: string; local: boolean }[];
   personas: { key: string; name: string; tagline: string }[];
   risk: { maxPositionPct: number; maxOrdersPerRun: number; maxTradesPerWeek: number; drawdownStopPct: number };
   runHourMsk: number;
   paused: boolean;
+  roundRunning: boolean;
   since: string | null;
   benchmarks: { imoexPct: number | null; ofzPct: number | null };
   agents: ArenaAgent[];
@@ -361,6 +364,7 @@ export type ArenaRun = {
   finishedAt: string | null;
   status: 'running' | 'done' | 'failed';
   error: string | null;
+  model: string | null;
   equityBefore: number | null;
   marketView: string | null;
   reasoning: string | null;
@@ -466,6 +470,7 @@ export const api = {
   arenaAgent: (id: number) => request<ArenaAgentDetail>('GET', `/arena/agents/${id}`),
   arenaRunAgent: (id: number) => request('POST', `/arena/agents/${id}/run`),
   arenaAgentStatus: (id: number, status: 'stop' | 'resume') => request('POST', `/arena/agents/${id}/${status}`),
+  arenaSetModel: (id: number, model: string | null) => request('PUT', `/arena/agents/${id}/model`, { model }),
 
   reviews: (scope: ReviewScope) => request<Review[]>('GET', `/review?scope=${scope}`),
   createReview: (scope: ReviewScope) => request<Review>('POST', '/review', { scope }),

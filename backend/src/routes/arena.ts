@@ -3,10 +3,13 @@ import { z } from 'zod';
 import {
   agentDetail,
   agentRunning,
+  availableModels,
+  setAgentModel,
   leaderboard,
   PERSONAS,
   RISK,
   RUN_HOUR_MSK,
+  roundRunning,
   runAgent,
   runAll,
   setAgentStatus,
@@ -14,7 +17,6 @@ import {
   setupArena,
   teardownArena,
 } from '../arena.js';
-import { aiConfigured } from '../ai.js';
 import { HttpError } from '../http.js';
 import { isSandbox, tinkoffConfigured } from '../tinkoff.js';
 import { assertSandbox } from '../trading.js';
@@ -24,8 +26,10 @@ export const arenaRouter = Router();
 const idParam = (v: unknown) => z.coerce.number().int().positive().parse(v);
 
 arenaRouter.get('/', async (_req, res) => {
+  const models = await availableModels();
   res.json({
-    configured: tinkoffConfigured() && isSandbox && aiConfigured(),
+    configured: tinkoffConfigured() && isSandbox && models.length > 0,
+    models,
     personas: Object.entries(PERSONAS).map(([key, p]) => ({ key, name: p.name, tagline: p.tagline })),
     risk: RISK,
     runHourMsk: RUN_HOUR_MSK,
@@ -35,8 +39,13 @@ arenaRouter.get('/', async (_req, res) => {
 
 arenaRouter.use((_req, _res, next) => {
   assertSandbox();
-  if (!aiConfigured()) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
   next();
+});
+
+arenaRouter.put('/agents/:id/model', async (req, res) => {
+  const { model } = z.object({ model: z.string().min(1).max(100).nullable() }).parse(req.body);
+  await setAgentModel(idParam(req.params.id), model);
+  res.json({ ok: true });
 });
 
 arenaRouter.post('/setup', async (req, res) => {
@@ -61,7 +70,8 @@ arenaRouter.post('/resume', async (_req, res) => {
 
 /** Fire-and-forget: agents run one after another, the page polls the leaderboard. */
 arenaRouter.post('/run', (_req, res) => {
-  void runAll();
+  if (roundRunning()) throw new HttpError(409, 'Раунд уже идёт');
+  runAll().catch((err) => console.error('Arena round:', err instanceof Error ? err.message : err));
   res.status(202).json({ ok: true });
 });
 

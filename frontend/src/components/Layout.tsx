@@ -154,7 +154,7 @@ export function Layout() {
         className="fixed inset-x-3 bottom-3 z-30 rounded-3xl border border-line/70 bg-surface/90 pb-[env(safe-area-inset-bottom)] shadow-2xl backdrop-blur-xl md:hidden"
         aria-label="Разделы"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {NAV.map(({ to, label, Icon, end }) => (
             <NavLink
               key={to}
