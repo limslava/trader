@@ -22,6 +22,11 @@ export class TtlCache<T> {
     private failureTtlMs = 15_000,
   ) {}
 
+  clear(): void {
+    this.store.clear();
+    this.failures.clear();
+  }
+
   async get(key: string, load: () => Promise<T>): Promise<T> {
     const now = Date.now();
     const hit = this.store.get(key);

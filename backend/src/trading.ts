@@ -94,9 +94,14 @@ export async function tradingStatus(secid: string) {
 
 type Account = { id: string; name: string; status: string };
 
+/** The user's own account: the first open one that is not owned by an Arena agent. */
 async function findAccount(): Promise<Account | null> {
-  const { accounts = [] } = await call<{ accounts?: Account[] }>('UsersService/GetAccounts', {});
-  return accounts.find((a) => a.status === 'ACCOUNT_STATUS_OPEN') ?? null;
+  const [{ accounts = [] }, { rows }] = await Promise.all([
+    call<{ accounts?: Account[] }>('UsersService/GetAccounts', {}),
+    pool.query<{ account_id: string }>('SELECT account_id FROM arena_agents'),
+  ]);
+  const agentAccounts = new Set(rows.map((r) => r.account_id));
+  return accounts.find((a) => a.status === 'ACCOUNT_STATUS_OPEN' && !agentAccounts.has(a.id)) ?? null;
 }
 
 // The account id does not change while the process runs; avoid a broker round-trip on every call.
@@ -114,9 +119,18 @@ const MAX_PAYIN = 30_000_000; // sandbox top-up limit
 
 export async function openAccount(amount: number) {
   if ((await findAccount()) !== null) throw new HttpError(409, 'Счёт песочницы уже открыт');
-  const { accountId } = await call<{ accountId: string }>('SandboxService/OpenSandboxAccount', { name: 'Trader' });
+  return openSandboxAccount('Trader', amount);
+}
+
+/** Opens an additional sandbox account (Arena agents get one each) and funds it. */
+export async function openSandboxAccount(name: string, amount: number) {
+  const { accountId } = await call<{ accountId: string }>('SandboxService/OpenSandboxAccount', { name });
   await payIn(accountId, amount);
   return accountId;
+}
+
+export async function closeSandboxAccount(accountId: string) {
+  await call('SandboxService/CloseSandboxAccount', { accountId });
 }
 
 export async function payIn(accountId: string, amount: number) {
@@ -126,8 +140,13 @@ export async function payIn(accountId: string, amount: number) {
 
 export async function closeAccount() {
   const account = await requireAccount();
-  await call('SandboxService/CloseSandboxAccount', { accountId: account.id });
+  await closeSandboxAccount(account.id);
   cachedAccount = null;
+}
+
+/** Resolves the account to act on: an explicit id (Arena agents) or the user's own account. */
+async function accountIdOr(accountId?: string): Promise<string> {
+  return accountId ?? (await requireAccount()).id;
 }
 
 // --- Portfolio ---
@@ -144,16 +163,16 @@ type RawPosition = {
   expectedYield?: Quotation;
 };
 
-export async function portfolio() {
-  const account = await requireAccount();
+export async function portfolio(forAccount?: string) {
+  const accountId = await accountIdOr(forAccount);
   const [p, positions] = await Promise.all([
     call<{
       totalAmountPortfolio?: Money;
       totalAmountCurrencies?: Money;
       expectedYield?: Quotation;
       positions?: RawPosition[];
-    }>('OperationsService/GetPortfolio', { accountId: account.id, currency: 'RUB' }),
-    call<{ money?: Money[]; blocked?: Money[] }>('OperationsService/GetPositions', { accountId: account.id }),
+    }>('OperationsService/GetPortfolio', { accountId, currency: 'RUB' }),
+    call<{ money?: Money[]; blocked?: Money[] }>('OperationsService/GetPositions', { accountId }),
   ]);
   const rub = (list?: Money[]) => q(list?.find((m) => m.currency === 'rub')) ?? 0;
   // `money` is already net of funds blocked by active orders.
@@ -188,7 +207,7 @@ export async function portfolio() {
   );
 
   return {
-    accountId: account.id,
+    accountId,
     total: q(p.totalAmountPortfolio),
     cash: freeCash + blockedCash,
     blockedCash,
@@ -259,16 +278,16 @@ function orderDto(o: OrderState, ticker?: string) {
 const orderLock = new KeyedLock();
 
 /** Orders are serialized so two concurrent buys cannot both pass the cash check (TOCTOU). */
-export function placeOrder(input: OrderInput) {
-  return orderLock.run('orders', () => placeOrderUnlocked(input));
+export async function placeOrder(input: OrderInput, forAccount?: string) {
+  const accountId = await accountIdOr(forAccount);
+  return orderLock.run(`orders:${accountId}`, () => placeOrderUnlocked(input, accountId));
 }
 
-async function placeOrderUnlocked(input: OrderInput) {
-  const account = await requireAccount();
+async function placeOrderUnlocked(input: OrderInput, accountId: string) {
   const [inst, status, pf] = await Promise.all([
     instrumentByTicker(input.secid),
     tradingStatus(input.secid),
-    portfolio(),
+    portfolio(accountId),
   ]);
 
   if (!status.canTrade) throw new HttpError(422, 'Торги по бумаге сейчас закрыты — заявку можно будет выставить в торговую сессию');
@@ -309,7 +328,7 @@ async function placeOrderUnlocked(input: OrderInput) {
     instrumentId: inst.uid,
     quantity: String(input.lots),
     direction: input.direction === 'buy' ? 'ORDER_DIRECTION_BUY' : 'ORDER_DIRECTION_SELL',
-    accountId: account.id,
+    accountId,
     orderType: input.type === 'limit' ? 'ORDER_TYPE_LIMIT' : 'ORDER_TYPE_MARKET',
     orderId: requestId, // idempotency key
     ...(price !== undefined ? { price: toQuotation(price) } : {}),
@@ -319,7 +338,7 @@ async function placeOrderUnlocked(input: OrderInput) {
   await pool.query(
     `INSERT INTO trade_log (request_id, account_id, secid, direction, order_type, lots, price, status, response)
      VALUES ($1, $2, $3, $4, $5, $6, $7, 'PENDING', '{}')`,
-    [requestId, account.id, input.secid, input.direction, input.type, input.lots, price ?? null],
+    [requestId, accountId, input.secid, input.direction, input.type, input.lots, price ?? null],
   );
 
   let res: OrderState;
@@ -327,7 +346,7 @@ async function placeOrderUnlocked(input: OrderInput) {
     res = await call<OrderState>('OrdersService/PostOrder', body);
   } catch (err) {
     // Timeout or network error: the broker may still have the order. Try to find it by our idempotency key.
-    const found = await reconcile(account.id, requestId).catch(() => null);
+    const found = await reconcile(accountId, requestId).catch(() => null);
     if (!found) {
       await pool.query(`UPDATE trade_log SET status = 'FAILED', response = $2 WHERE request_id = $1`, [
         requestId,
@@ -356,17 +375,16 @@ async function reconcile(accountId: string, requestId: string): Promise<OrderSta
   return orders.find((o) => o.orderRequestId === requestId) ?? null;
 }
 
-export async function activeOrders() {
-  const account = await requireAccount();
-  const { orders = [] } = await call<{ orders?: OrderState[] }>('OrdersService/GetOrders', { accountId: account.id });
+export async function activeOrders(forAccount?: string) {
+  const accountId = await accountIdOr(forAccount);
+  const { orders = [] } = await call<{ orders?: OrderState[] }>('OrdersService/GetOrders', { accountId });
   return Promise.all(
     orders.map(async (o) => orderDto(o, o.ticker ?? (await instrumentByUid(o.instrumentUid).catch(() => null))?.ticker)),
   );
 }
 
-export async function cancelOrder(orderId: string) {
-  const account = await requireAccount();
-  await call('OrdersService/CancelOrder', { accountId: account.id, orderId });
+export async function cancelOrder(orderId: string, forAccount?: string) {
+  await call('OrdersService/CancelOrder', { accountId: await accountIdOr(forAccount), orderId });
 }
 
 type RawOperation = {
@@ -381,11 +399,11 @@ type RawOperation = {
   instrumentUid?: string;
 };
 
-export async function operations(days = 90) {
-  const account = await requireAccount();
+export async function operations(days = 90, forAccount?: string) {
+  const accountId = await accountIdOr(forAccount);
   const now = Date.now();
   const { operations: ops = [] } = await call<{ operations?: RawOperation[] }>('OperationsService/GetOperations', {
-    accountId: account.id,
+    accountId,
     from: new Date(now - days * 86_400_000).toISOString(),
     to: new Date(now + 60_000).toISOString(),
     state: 'OPERATION_STATE_EXECUTED',

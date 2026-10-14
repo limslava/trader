@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { WindowProvider } from './components/Windows';
 import { Spinner } from './components/ui';
 import './index.css';
+import { Arena } from './pages/Arena';
 import { History } from './pages/History';
 import { Home } from './pages/Home';
 import { Instrument } from './pages/Instrument';
@@ -52,6 +53,7 @@ function App() {
         <Route path="s/:secid" element={<Instrument />} />
         <Route path="market" element={<Market />} />
         <Route path="portfolio" element={<Portfolio />} />
+        <Route path="arena" element={<Arena />} />
         <Route path="history" element={<History />} />
         <Route path="learn" element={<Learn />} />
         <Route path="*" element={<Home />} />

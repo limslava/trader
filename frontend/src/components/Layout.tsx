@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, History, House, LineChart, LogOut, Moon, Search, Sun, Wallet } from 'lucide-react';
+import { BookOpen, History, House, LineChart, LogOut, Moon, Search, Sun, Swords, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { api } from '../api';
@@ -11,6 +11,7 @@ import { CommandPalette } from './CommandPalette';
 const TITLES: Record<string, string> = {
   '/market': 'Рынок',
   '/portfolio': 'Портфель',
+  '/arena': 'Арена',
   '/history': 'История',
   '/learn': 'Обучение',
 };
@@ -19,6 +20,7 @@ const NAV = [
   { to: '/', label: 'Обзор', Icon: House, end: true },
   { to: '/market', label: 'Рынок', Icon: LineChart, end: false },
   { to: '/portfolio', label: 'Портфель', Icon: Wallet, end: false },
+  { to: '/arena', label: 'Арена', Icon: Swords, end: false },
   { to: '/history', label: 'История', Icon: History, end: false },
   { to: '/learn', label: 'Обучение', Icon: BookOpen, end: false },
 ];

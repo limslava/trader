@@ -134,12 +134,12 @@ function buildUserPrompt(
   });
 }
 
-async function chat(messages: { role: string; content: string }[]): Promise<string> {
+async function chat(messages: { role: string; content: string }[], model = config.AI_MODEL): Promise<string> {
   const res = await fetch(`${config.AI_BASE_URL.replace(/\/$/, '')}/chat/completions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.AI_API_KEY}` },
     body: JSON.stringify({
-      model: config.AI_MODEL,
+      model,
       messages,
       temperature: 0.2,
       max_tokens: 8000,
@@ -176,7 +176,7 @@ export function guarded<T>(key: string, job: () => Promise<T>): Promise<T> {
 }
 
 /** Calls the model expecting JSON matching `schema`, with one repair attempt on invalid output. */
-async function askJson<T>(system: string, user: string, schema: z.ZodType<T>): Promise<T> {
+export async function askJson<T>(system: string, user: string, schema: z.ZodType<T>, model?: string): Promise<T> {
   if (!aiConfigured()) throw new HttpError(503, 'AI не настроен: задайте AI_API_KEY в .env');
   if (!aiBudget.take()) throw new HttpError(429, 'Слишком много AI-запросов за минуту, попробуйте чуть позже');
 
@@ -184,17 +184,20 @@ async function askJson<T>(system: string, user: string, schema: z.ZodType<T>): P
     { role: 'system', content: system },
     { role: 'user', content: user },
   ];
-  const first = await chat(messages);
+  const first = await chat(messages, model);
   try {
     return parseJson(first, schema);
   } catch (err) {
     // Show the model its own output and the validation error.
     const reason = err instanceof Error ? err.message : String(err);
-    const second = await chat([
-      ...messages,
-      { role: 'assistant', content: first },
-      { role: 'user', content: `Ответ не прошёл проверку схемы: ${reason.slice(0, 500)}. Верни исправленный JSON целиком.` },
-    ]);
+    const second = await chat(
+      [
+        ...messages,
+        { role: 'assistant', content: first },
+        { role: 'user', content: `Ответ не прошёл проверку схемы: ${reason.slice(0, 500)}. Верни исправленный JSON целиком.` },
+      ],
+      model,
+    );
     try {
       return parseJson(second, schema);
     } catch {

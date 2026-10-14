@@ -19,6 +19,9 @@ export type ScreenerRow = {
   score: Score;
   /** A few ratios for peer tables; null for funds. */
   ratios: { pe: number | null; dividendYieldPct: number | null; roePct: number | null; change3mPct: number | null };
+  /** Compact technical read, reused by the Arena data package. */
+  tech: { rsi14: number | null; change1wPct: number | null; change1mPct: number | null; change1yPct: number | null; aboveSma50: boolean | null; aboveSma200: boolean | null; volatility20dPct: number | null; fromHigh52wPct: number | null };
+  lot: number;
 };
 
 const screenerCache = new TtlCache<ScreenerRow[]>(15 * 60_000);
@@ -48,6 +51,17 @@ export function screener(): Promise<ScreenerRow[]> {
             sector: sectors.get(m.secid) ?? 'other',
             score: computeScore(ind, rel, f),
             ratios: { pe: num(f?.peRatioTtm), dividendYieldPct: num(f?.dividendYieldDailyTtm), roePct: num(f?.roe), change3mPct: ind.change3mPct },
+            tech: {
+              rsi14: ind.rsi14,
+              change1wPct: ind.change1wPct,
+              change1mPct: ind.change1mPct,
+              change1yPct: ind.change1yPct,
+              aboveSma50: ind.close !== null && ind.sma50 !== null ? ind.close > ind.sma50 : null,
+              aboveSma200: ind.close !== null && ind.sma200 !== null ? ind.close > ind.sma200 : null,
+              volatility20dPct: ind.volatility20dPct,
+              fromHigh52wPct: ind.close !== null && ind.high52w ? Number((((ind.close - ind.high52w) / ind.high52w) * 100).toFixed(1)) : null,
+            },
+            lot: q?.lotSize ?? 1,
           });
         }),
       );

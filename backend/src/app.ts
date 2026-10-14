@@ -10,6 +10,7 @@ import { pool } from './db.js';
 import { HttpError } from './http.js';
 import { buildDigest, sendTelegram, telegramConfigured } from './digest.js';
 import { analysisRouter } from './routes/analysis.js';
+import { arenaRouter } from './routes/arena.js';
 import { articleRouter } from './routes/article.js';
 import { calendarRouter } from './routes/calendar.js';
 import { screenerRouter } from './routes/screener.js';
@@ -41,6 +42,7 @@ export function createApp() {
   app.use('/api/calendar', requireAuth, calendarRouter);
   app.use('/api/news', requireAuth, articleRouter);
   app.use('/api/screener', requireAuth, screenerRouter);
+  app.use('/api/arena', requireAuth, arenaRouter);
   app.get('/api/digest/status', requireAuth, (_req, res) => res.json({ configured: telegramConfigured() }));
   app.get('/api/digest/preview', requireAuth, async (_req, res) => res.json({ text: await buildDigest() }));
   app.post('/api/digest/send', requireAuth, async (_req, res) => {

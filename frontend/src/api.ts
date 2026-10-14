@@ -310,6 +310,71 @@ export type Article = {
   summary: string | null;
 };
 
+export type ArenaAgent = {
+  id: number;
+  name: string;
+  persona: string;
+  model: string | null;
+  accountId: string;
+  startCapital: number;
+  status: 'active' | 'stopped';
+  stopReason: string | null;
+  createdAt: string;
+  tagline: string;
+  equity: number;
+  cash: number;
+  positions: number;
+  returnPct: number;
+  maxDrawdownPct: number;
+  sharpe: number | null;
+  trades: number;
+  feesRub: number;
+  running: boolean;
+  lastRunAt: string | null;
+  curve: { day: string; equity: number }[];
+};
+
+export type Arena = {
+  configured: boolean;
+  personas: { key: string; name: string; tagline: string }[];
+  risk: { maxPositionPct: number; maxOrdersPerRun: number; maxTradesPerWeek: number; drawdownStopPct: number };
+  runHourMsk: number;
+  paused: boolean;
+  since: string | null;
+  benchmarks: { imoexPct: number | null; ofzPct: number | null };
+  agents: ArenaAgent[];
+};
+
+export type ArenaOrder = {
+  secid: string;
+  direction: 'buy' | 'sell';
+  lots: number;
+  amountRub: number;
+  status: 'filled' | 'rejected' | 'failed';
+  reason: string;
+  orderId?: string;
+};
+
+export type ArenaRun = {
+  id: number;
+  startedAt: string;
+  finishedAt: string | null;
+  status: 'running' | 'done' | 'failed';
+  error: string | null;
+  equityBefore: number | null;
+  marketView: string | null;
+  reasoning: string | null;
+  proposed: { secid: string; direction: 'buy' | 'sell'; amountRub?: number; sellAll?: boolean; reason: string }[];
+  executed: ArenaOrder[];
+};
+
+export type ArenaAgentDetail = {
+  agent: Omit<ArenaAgent, 'equity' | 'cash' | 'positions' | 'returnPct' | 'maxDrawdownPct' | 'sharpe' | 'trades' | 'feesRub' | 'lastRunAt' | 'curve'> & { style: string };
+  portfolio: Portfolio | null;
+  runs: ArenaRun[];
+  curve: { day: string; equity: number; imoex: number | null }[];
+};
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; sector: string; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -392,6 +457,15 @@ export const api = {
   placeOrder: (input: OrderInput) => request<Order>('POST', '/trading/orders', input),
   cancelOrder: (orderId: string) => request('DELETE', `/trading/orders/${enc(orderId)}`),
   operations: () => request<Operation[]>('GET', '/trading/operations'),
+
+  arena: () => request<Arena>('GET', '/arena'),
+  arenaSetup: (capital: number) => request('POST', '/arena/setup', { capital }),
+  arenaTeardown: () => request('DELETE', '/arena'),
+  arenaPause: (paused: boolean) => request('POST', paused ? '/arena/pause' : '/arena/resume'),
+  arenaRunAll: () => request('POST', '/arena/run'),
+  arenaAgent: (id: number) => request<ArenaAgentDetail>('GET', `/arena/agents/${id}`),
+  arenaRunAgent: (id: number) => request('POST', `/arena/agents/${id}/run`),
+  arenaAgentStatus: (id: number, status: 'stop' | 'resume') => request('POST', `/arena/agents/${id}/${status}`),
 
   reviews: (scope: ReviewScope) => request<Review[]>('GET', `/review?scope=${scope}`),
   createReview: (scope: ReviewScope) => request<Review>('POST', '/review', { scope }),
