@@ -293,8 +293,8 @@ function GroupView({ group, data, selected, onSelect }: { group: ArenaGroup; dat
 
   return (
     <div className="space-y-5">
-      <Surface className="px-5 py-4 md:px-7">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+      <Surface className="px-4 py-4 md:px-7">
+        <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold tracking-tight">
               {group.title}: идёт с {date(group.since)}
@@ -303,29 +303,62 @@ function GroupView({ group, data, selected, onSelect }: { group: ArenaGroup; dat
               {group.description} Лидер — {leader.name} ({pct(leader.returnPct)}).
             </p>
           </div>
-          <div className="flex gap-6 text-sm">
-            <span>
-              <span className="block text-xs text-muted">Индекс Мосбиржи</span>
-              <Delta value={group.benchmarks.imoexPct} />
-            </span>
-            <span>
-              <span className="block text-xs text-muted">ОФЗ (1 год)</span>
-              <Delta value={group.benchmarks.ofzPct} />
-            </span>
-          </div>
           <Button
             variant="ghost"
             onClick={() => window.confirm(`Закрыть счета всех агентов турнира «${group.title}» и удалить их журнал? Это нельзя отменить.`) && teardown.mutate()}
             disabled={teardown.isPending}
             title="Закрыть счета агентов и удалить турнир"
+            className="shrink-0"
           >
             <Trash2 className="size-4" aria-hidden />
           </Button>
         </div>
+        <div className="mt-3 flex gap-6 text-sm">
+          <span>
+            <span className="block text-xs text-muted">Индекс Мосбиржи</span>
+            <Delta value={group.benchmarks.imoexPct} />
+          </span>
+          <span>
+            <span className="block text-xs text-muted">ОФЗ (1 год)</span>
+            <Delta value={group.benchmarks.ofzPct} />
+          </span>
+        </div>
         <ErrorText error={teardown.error} />
       </Surface>
 
-      <Surface className="overflow-x-auto">
+      {/* Phones: one card per agent; the wide table below is for tablets and desktops. */}
+      <Surface className="divide-y divide-line/70 md:hidden">
+        {group.agents.map((ag, i) => (
+          <button
+            key={ag.id}
+            type="button"
+            onClick={() => onSelect(ag.id)}
+            className={`flex w-full items-center gap-3 px-4 py-3 text-left ${current === ag.id ? 'bg-accent/5' : ''}`}
+          >
+            <Rank n={i + 1} />
+            <span className={`grid size-9 shrink-0 place-items-center rounded-xl text-sm font-bold ${PERSONA_TONE[ag.persona] ?? 'bg-surface-2'}`}>{ag.name.slice(0, 1)}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold">{ag.name}</span>
+              <span className="block truncate text-xs text-muted">
+                {group.key === 'main' ? modelName(ag.effectiveModel) : ag.tagline} · {ag.trades} сдел.
+                {ag.status === 'stopped' && <span className="text-down"> · стоп</span>}
+                {ag.running && <span className="text-ai"> · думает…</span>}
+              </span>
+            </span>
+            <span className="hidden min-[400px]:block">
+              <Sparkline data={[ag.startCapital, ...ag.curve.map((c) => c.equity), ag.equity]} width={56} height={22} fill={false} />
+            </span>
+            <span className="w-[4.5rem] shrink-0 text-right">
+              <span className="block text-sm font-semibold tabular-nums">
+                <Delta value={ag.returnPct} />
+              </span>
+              <span className="block text-xs whitespace-nowrap text-muted tabular-nums">{money(ag.equity)}</span>
+            </span>
+          </button>
+        ))}
+      </Surface>
+
+      <Surface className="hidden overflow-x-auto md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead className="text-left text-xs whitespace-nowrap text-muted">
             <tr className="border-b border-line/70">
@@ -430,18 +463,20 @@ export function Arena() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <Segmented value={tab} onChange={setTab} options={a.groups.map((g) => ({ value: g.key, label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` }))} />
+        <div className="max-w-full overflow-x-auto">
+          <Segmented value={tab} onChange={setTab} options={a.groups.map((g) => ({ value: g.key, label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` }))} />
+        </div>
         <span className="flex items-center gap-2 text-sm text-muted">
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink" title="Счета агентов виртуальные: живые цены биржи, комиссия 0,05%, настоящих денег нет">виртуально</span>
           {a.paused ? <span className="rounded-full bg-hold/20 px-2 py-0.5 text-[11px] font-semibold text-ink">на паузе</span> : <>ходы по будням в {a.runHoursMsk.map((h) => `${h}:00`).join(', ')} МСК</>}
           {anyRunning && <span className="text-ai">раунд идёт…</span>}
         </span>
         {total > 0 && (
-          <span className="ml-auto flex flex-wrap gap-2">
-            <Button variant="ai" onClick={() => runAll.mutate()} disabled={anyRunning || runAll.isPending || a.paused} title="Все активные агенты всех турниров принимают решение сейчас">
+          <span className="flex w-full gap-2 md:ml-auto md:w-auto">
+            <Button variant="ai" onClick={() => runAll.mutate()} disabled={anyRunning || runAll.isPending || a.paused} title="Все активные агенты всех турниров принимают решение сейчас" className="flex-1 md:flex-none">
               <RotateCw className="size-4" aria-hidden /> Раунд сейчас
             </Button>
-            <Button onClick={() => pause.mutate(!a.paused)} disabled={pause.isPending}>
+            <Button onClick={() => pause.mutate(!a.paused)} disabled={pause.isPending} className="flex-1 md:flex-none">
               {a.paused ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />} {a.paused ? 'Продолжить' : 'Пауза'}
             </Button>
           </span>
