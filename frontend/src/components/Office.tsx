@@ -68,6 +68,9 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
   const visuals = useRef(new Map<number, Visual>());
   const latest = useRef({ groups, selected, onSelect });
   latest.current = { groups, selected, onSelect };
+  const resizeRef = useRef<() => void>(() => {});
+  const key = groups.map((g) => `${g.key}:${g.agents.length}`).join('|');
+  useEffect(() => resizeRef.current(), [key]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -95,11 +98,12 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
     const resize = () => {
       cols = wrap.clientWidth >= 620 ? COLS_WIDE : COLS_NARROW;
       const { width, height } = layout(latest.current.groups, cols);
-      scale = Math.max(1, Math.floor((wrap.clientWidth / width) * 2) / 2);
+      // Fill the card edge to edge; pixelated rendering keeps the sprites crisp at fractional scales.
+      scale = Math.max(1, wrap.clientWidth / width);
       canvas.width = width;
       canvas.height = height;
-      canvas.style.width = `${width * scale}px`;
-      canvas.style.height = `${height * scale}px`;
+      canvas.style.width = '100%';
+      canvas.style.height = `${Math.round(height * scale)}px`;
       ctx.imageSmoothingEnabled = false;
       // Homes move when the column count changes: snap everyone back to their desk.
       const { map } = agentIndex();
@@ -294,6 +298,7 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
     };
     canvas.addEventListener('mousemove', onMove);
     canvas.addEventListener('click', onClick);
+    resizeRef.current = () => { if (Object.keys(sheets).length) resize(); };
     const ro = new ResizeObserver(resize);
     ro.observe(wrap);
 
@@ -315,8 +320,8 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
   }, []);
 
   return (
-    <div ref={wrapRef} className="overflow-x-auto">
-      <canvas ref={canvasRef} className="block rounded-2xl [image-rendering:pixelated]" aria-label="Офис: агенты арены за рабочими местами" />
+    <div ref={wrapRef} className="w-full">
+      <canvas ref={canvasRef} className="block w-full rounded-2xl [image-rendering:pixelated]" aria-label="Офис: агенты арены за рабочими местами" />
     </div>
   );
 }
