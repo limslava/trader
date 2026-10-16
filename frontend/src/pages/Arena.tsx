@@ -3,6 +3,7 @@ import { Pause, Play, RotateCw, Square, Trash2, Trophy } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { api, type Arena as ArenaData, type ArenaAgent, type ArenaGroup, type ArenaGroupKey, type ArenaRun } from '../api';
+import { Office } from '../components/Office';
 import { Sparkline } from '../components/Sparkline';
 import { Button, Delta, Empty, ErrorText, Monogram, Segmented, Skeleton, Surface, Tabs } from '../components/ui';
 import { date, dateTime, money, pct, price } from '../format';
@@ -433,7 +434,7 @@ function GroupView({ group, data, selected, onSelect }: { group: ArenaGroup; dat
 export function Arena() {
   const qc = useQueryClient();
   const arena = useQuery({ queryKey: ['arena'], queryFn: api.arena, refetchInterval: 15_000 });
-  const [tab, setTab] = useState<ArenaGroupKey>('main');
+  const [tab, setTab] = useState<ArenaGroupKey | 'office'>('main');
   const [selected, setSelected] = useState<number>();
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['arena'] });
@@ -464,7 +465,14 @@ export function Arena() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <div className="max-w-full overflow-x-auto">
-          <Segmented value={tab} onChange={setTab} options={a.groups.map((g) => ({ value: g.key, label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` }))} />
+          <Segmented
+            value={tab}
+            onChange={setTab}
+            options={[
+              ...a.groups.map((g) => ({ value: g.key as ArenaGroupKey | 'office', label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` })),
+              { value: 'office' as const, label: 'Офис' },
+            ]}
+          />
         </div>
         <span className="flex items-center gap-2 text-sm text-muted">
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink" title="Счета агентов виртуальные: живые цены биржи, комиссия 0,05%, настоящих денег нет">виртуально</span>
@@ -483,7 +491,23 @@ export function Arena() {
         )}
       </div>
       <ErrorText error={runAll.error ?? pause.error} />
-      {group.agents.length === 0 ? <SetupCard group={group.key} data={a} /> : <GroupView group={group} data={a} selected={selected} onSelect={setSelected} />}
+      {tab === 'office' ? (
+        total === 0 ? (
+          <SetupCard group="main" data={a} />
+        ) : (
+          <div className="space-y-5">
+            <Surface className="p-3 md:p-4">
+              <Office groups={a.groups} selected={selected} onSelect={setSelected} />
+              <p className="mt-3 px-1 text-xs text-muted">Жёлтая метка — думает, зелёная — в игре, красная — остановлен. Облачко — последняя сделка. Тап по персонажу открывает журнал.</p>
+            </Surface>
+            {selected !== undefined && <AgentPanel id={selected} models={a.models} onChanged={refresh} />}
+          </div>
+        )
+      ) : group.agents.length === 0 ? (
+        <SetupCard group={group.key} data={a} />
+      ) : (
+        <GroupView group={group} data={a} selected={selected} onSelect={setSelected} />
+      )}
     </div>
   );
 }
