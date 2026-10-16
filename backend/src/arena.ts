@@ -612,6 +612,9 @@ export type LeaderboardRow = Agent & {
   curve: { day: string; equity: number }[];
   /** Model actually used on the next run (agent's own or the cloud default). */
   effectiveModel: string;
+  /** Short caption for the office view: the latest fill, or why there was none. */
+  lastAction: string | null;
+  lastActionAt: string | null;
 };
 
 export type LeaderboardGroup = {
@@ -656,8 +659,19 @@ async function leaderboardRow(a: Agent): Promise<LeaderboardRow> {
     agentPortfolio(a).catch(() => null),
     pool.query<{ day: string; equity: string }>(`SELECT to_char(day, 'YYYY-MM-DD') AS day, equity FROM arena_snapshots WHERE agent_id = $1 ORDER BY day`, [a.id]),
     pool.query<{ n: string; fees: string | null }>('SELECT count(*) AS n, sum(commission) AS fees FROM arena_trades WHERE agent_id = $1', [a.id]),
-    pool.query<{ started_at: Date }>('SELECT started_at FROM arena_runs WHERE agent_id = $1 ORDER BY started_at DESC LIMIT 1', [a.id]),
+    pool.query<{ started_at: Date; status: string; executed: ExecutedOrder[] | null; error: string | null }>(
+      'SELECT started_at, status, executed, error FROM arena_runs WHERE agent_id = $1 ORDER BY started_at DESC LIMIT 1',
+      [a.id],
+    ),
   ]);
+  const lastRun = last.rows[0];
+  const filled = lastRun?.executed?.filter((e) => e.status === 'filled') ?? [];
+  const lastAction =
+    !lastRun ? null
+    : lastRun.status === 'running' ? 'думает…'
+    : lastRun.status === 'failed' ? 'ошибка хода'
+    : filled.length ? filled.map((e) => `${e.direction === 'buy' ? 'купил' : 'продал'} ${e.secid} · ${Math.round(e.amountRub).toLocaleString('ru-RU')} ₽`).join(', ')
+    : 'без сделок';
   const equity = pf?.total ?? Number(snaps.rows.at(-1)?.equity ?? a.startCapital);
   const curve = snaps.rows.map((s) => ({ day: s.day, equity: Number(s.equity) }));
   const series = [a.startCapital, ...curve.map((c) => c.equity), equity];
@@ -679,9 +693,11 @@ async function leaderboardRow(a: Agent): Promise<LeaderboardRow> {
     trades: Number(stats.rows[0]?.n ?? 0),
     feesRub: Number(stats.rows[0]?.fees ?? 0),
     running: agentRunning(a.id),
-    lastRunAt: last.rows[0]?.started_at.toISOString() ?? null,
+    lastRunAt: lastRun?.started_at.toISOString() ?? null,
     curve,
     effectiveModel: a.model ?? config.AI_MODEL,
+    lastAction,
+    lastActionAt: lastRun?.started_at.toISOString() ?? null,
   };
 }
 

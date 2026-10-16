@@ -28,7 +28,10 @@ const queryClient = new QueryClient({
 });
 
 // Any 401 (expired session) from any request sends the user back to the login screen.
-setUnauthorizedHandler(() => queryClient.setQueryData(['me'], null));
+setUnauthorizedHandler(() => {
+  queryClient.setQueryData(['me'], null);
+  queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
+});
 
 /**
  * Like the password manager: the server session lives only a few minutes and is extended by requests, so the
@@ -50,8 +53,10 @@ function useAutoLock(enabled: boolean) {
     let lastActivity = Date.now();
     const lock = () => {
       root.classList.remove('privacy-blur');
-      qc.clear();
+      // Flip the session query first and keep it: clearing the whole cache would detach the App's observer
+      // from it, and the login screen would never appear. Everything else is dropped so nothing stale shows.
       qc.setQueryData(['me'], null);
+      qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'me' });
       void api.logout().catch(() => undefined);
     };
     const heartbeat = () => {

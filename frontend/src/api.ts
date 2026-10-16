@@ -334,6 +334,8 @@ export type ArenaAgent = {
   lastRunAt: string | null;
   curve: { day: string; equity: number }[];
   effectiveModel: string;
+  lastAction: string | null;
+  lastActionAt: string | null;
 };
 
 export type ArenaGroupKey = 'main' | 'models' | 'styles';
