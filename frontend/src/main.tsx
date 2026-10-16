@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { api, ApiError, setUnauthorizedHandler } from './api';
@@ -30,6 +30,33 @@ const queryClient = new QueryClient({
 // Any 401 (expired session) from any request sends the user back to the login screen.
 setUnauthorizedHandler(() => queryClient.setQueryData(['me'], null));
 
+/** Like the password manager: once the app has been in the background for a while, the session is dropped
+ *  and the next open asks for Face ID or the password again. */
+const LOCK_AFTER_MS = 30_000;
+
+function useAutoLock(enabled: boolean) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (!enabled) return;
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAt = Date.now();
+        return;
+      }
+      if (hiddenAt && Date.now() - hiddenAt > LOCK_AFTER_MS) {
+        hiddenAt = 0;
+        void api.logout().finally(() => {
+          qc.clear();
+          qc.setQueryData(['me'], null);
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [enabled, qc]);
+}
+
 function App() {
   const qc = useQueryClient();
   const me = useQuery({
@@ -37,6 +64,8 @@ function App() {
     queryFn: () => api.me().catch((err) => (err instanceof ApiError && err.status === 401 ? null : Promise.reject(err))),
     staleTime: Infinity,
   });
+
+  useAutoLock(!!me.data);
 
   if (me.isLoading) {
     return (

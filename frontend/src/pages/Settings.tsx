@@ -49,6 +49,13 @@ function TotpCard({ enabled, onChanged }: { enabled: boolean; onChanged: () => v
       onChanged();
     },
   });
+  const reset = useMutation({
+    mutationFn: api.totpReset,
+    onSuccess: () => {
+      setup.reset();
+      setCode('');
+    },
+  });
   const disable = useMutation({
     mutationFn: () => api.totpDisable(password, code),
     onSuccess: () => {
@@ -96,8 +103,13 @@ function TotpCard({ enabled, onChanged }: { enabled: boolean; onChanged: () => v
           <Button type="submit" variant={enabled ? 'down' : 'primary'} disabled={setup.isPending || enable.isPending || disable.isPending || (!setup.data && !password) || ((enabled || !!setup.data) && code.length !== 6)}>
             {enabled ? 'Отключить' : setup.data ? 'Подтвердить и включить' : 'Включить'}
           </Button>
+          {!enabled && setup.data && (
+            <Button type="button" variant="ghost" onClick={() => reset.mutate()} disabled={reset.isPending} title="Сбросить ключ и показать новый QR">
+              Начать заново
+            </Button>
+          )}
         </div>
-        <ErrorText error={setup.error ?? enable.error ?? disable.error} />
+        <ErrorText error={setup.error ?? enable.error ?? disable.error ?? reset.error} />
       </form>
     </Surface>
   );

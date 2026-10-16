@@ -432,6 +432,7 @@ export const api = {
   authStatus: () => request<AuthStatus>('GET', '/auth/status'),
   totpSetup: (password: string) => request<{ secret: string; qr: string }>('POST', '/auth/2fa/setup', { password }),
   totpEnable: (code: string) => request('POST', '/auth/2fa/enable', { code }),
+  totpReset: () => request('POST', '/auth/2fa/reset'),
   totpDisable: (password: string, code: string) => request('POST', '/auth/2fa/disable', { password, code }),
   passkeys: () => request<Passkey[]>('GET', '/auth/passkeys'),
   passkeyRegisterOptions: (password: string) => request<unknown>('POST', '/auth/passkeys/register/options', { password }),

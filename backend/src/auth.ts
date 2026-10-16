@@ -189,8 +189,10 @@ authRouter.post('/2fa/setup', requireAuth, async (req, res) => {
   if (!passwordMatches(password)) throw new HttpError(401, 'Неверный пароль');
   const s = await settings();
   if (s.totp_enabled) throw new HttpError(409, 'Двухфакторная защита уже включена');
-  const secret = generateSecret();
-  await pool.query('UPDATE auth_settings SET totp_secret_enc = $1, totp_last_step = 0 WHERE id = 1', [encrypt(secret)]);
+  // Reuse a pending secret: the page may reload while the user switches to the authenticator app,
+  // and a fresh secret would silently invalidate what they just scanned.
+  const secret = s.totp_secret_enc ? decrypt(s.totp_secret_enc) : generateSecret();
+  if (!s.totp_secret_enc) await pool.query('UPDATE auth_settings SET totp_secret_enc = $1, totp_last_step = 0 WHERE id = 1', [encrypt(secret)]);
   const uri = generateURI({ issuer: 'Trader', label: config.WEBAUTHN_RP_ID, secret });
   res.json({ secret, qr: await QRCode.toDataURL(uri, { margin: 1, width: 220 }) });
 });
@@ -199,9 +201,21 @@ authRouter.post('/2fa/enable', requireAuth, async (req, res) => {
   const { code } = z.object({ code: z.string() }).parse(req.body);
   const s = await settings();
   if (!s.totp_secret_enc) throw new HttpError(409, 'Сначала получите QR-код');
-  if (!(await checkTotp(s, code))) throw new HttpError(401, 'Код не подошёл, проверьте время на телефоне и попробуйте ещё раз');
+  if (!(await checkTotp(s, code))) {
+    await log(req, 'totp_enable_fail');
+    throw new HttpError(401, 'Код не подошёл. Если QR сканировали давно, нажмите «Начать заново» и добавьте ключ в приложение ещё раз');
+  }
   await pool.query('UPDATE auth_settings SET totp_enabled = true WHERE id = 1');
   await log(req, 'totp_enabled');
+  res.json({ ok: true });
+});
+
+/** Drops a pending (not yet confirmed) secret so the next setup shows a fresh QR. */
+authRouter.post('/2fa/reset', requireAuth, async (req, res) => {
+  const s = await settings();
+  if (s.totp_enabled) throw new HttpError(409, 'Сначала отключите двухфакторную защиту');
+  await pool.query('UPDATE auth_settings SET totp_secret_enc = NULL, totp_last_step = 0 WHERE id = 1');
+  await log(req, 'totp_reset');
   res.json({ ok: true });
 });
 
