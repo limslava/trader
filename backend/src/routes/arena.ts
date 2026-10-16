@@ -9,7 +9,7 @@ import {
   GROUPS,
   PERSONAS,
   RISK,
-  RUN_HOUR_MSK,
+  RUN_HOURS_MSK,
   roundRunning,
   runAgent,
   runAll,
@@ -32,7 +32,7 @@ arenaRouter.get('/', async (_req, res) => {
     models,
     personas: Object.entries(PERSONAS).map(([key, p]) => ({ key, name: p.name, tagline: p.tagline })),
     risk: RISK,
-    runHourMsk: RUN_HOUR_MSK,
+    runHoursMsk: RUN_HOURS_MSK,
     ...(await leaderboard()),
   });
 });

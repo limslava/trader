@@ -21,13 +21,14 @@ import { tradingStatus } from './trading.js';
 export const RISK = {
   maxPositionPct: 10, // one stock may not exceed this share of the account
   maxOrdersPerRun: 3,
-  maxTradesPerWeek: 6,
+  maxTradesPerWeek: 12,
   drawdownStopPct: 15, // the agent is stopped once it loses this much from its peak
   minOrderRub: 1_000,
   commission: 0.0005,
 };
 
-export const RUN_HOUR_MSK = 11; // trading session is open, overnight news is already priced in
+// Three decision sessions a day while the exchange is open: after the open, midday, before the close.
+export const RUN_HOURS_MSK = [10, 13, 16];
 const SNAPSHOT_HOUR_MSK = 19; // after the main session close (18:50)
 
 export type PersonaKey = 'value' | 'momentum' | 'contrarian' | 'dividend' | 'quant' | 'neutral';
@@ -350,7 +351,7 @@ function systemPrompt(agent: Agent) {
 
 Правила (их проверяет отдельный риск-слой; нарушения будут отклонены):
 - Торгуешь только бумагами из списка instruments (тикеры ровно как в поле secid). Только рыночные заявки, только за свои деньги (без плеча и шортов).
-- За один день не больше ${RISK.maxOrdersPerRun} заявок, за неделю не больше ${RISK.maxTradesPerWeek} сделок. Комиссия ${RISK.commission * 100}% от суммы — не крути позиции без причины.
+- Ты принимаешь решения ${RUN_HOURS_MSK.length} раза в день (${RUN_HOURS_MSK.map((h) => `${h}:00`).join(', ')} МСК). За один ход не больше ${RISK.maxOrdersPerRun} заявок, за неделю не больше ${RISK.maxTradesPerWeek} сделок. Комиссия ${RISK.commission * 100}% от суммы — не крути позиции без причины.
 - Одна бумага не больше ${RISK.maxPositionPct}% счёта (equity). Покупка: укажи amountRub (сумма в рублях). Продажа: amountRub или sellAll: true.
 - Если хороших идей нет — верни пустой список orders. Бездействие — нормальное решение. Деньги на счёте не обесцениваются в турнире, но и не приносят доход.
 - Учитывай российскую специфику: ключевая ставка ЦБ, курс рубля, санкции, дивидендные отсечки, доходность ОФЗ как альтернатива.
@@ -570,9 +571,9 @@ async function snapshotAll() {
   for (const a of await listAgents()) await snapshot(a).catch(() => undefined);
 }
 
-/** Weekday 11:00 MSK: decisions; 19:00 MSK: closing snapshots. Checked every minute. */
+/** Weekdays at RUN_HOURS_MSK: decisions; 19:00 MSK: closing snapshots. Checked every minute. */
 export function scheduleArena() {
-  let lastRunDay = '';
+  let lastRunSlot = '';
   let lastSnapDay = '';
   setInterval(async () => {
     const msk = new Date(Date.now() + 3 * 3600_000);
@@ -580,8 +581,9 @@ export function scheduleArena() {
     const weekday = msk.getUTCDay() >= 1 && msk.getUTCDay() <= 5;
     if (!weekday) return;
     try {
-      if (msk.getUTCHours() === RUN_HOUR_MSK && lastRunDay !== day) {
-        lastRunDay = day;
+      const slot = `${day}:${msk.getUTCHours()}`;
+      if (RUN_HOURS_MSK.includes(msk.getUTCHours()) && lastRunSlot !== slot) {
+        lastRunSlot = slot;
         if (!(await isPaused())) await runAll().catch(() => undefined);
       } else if (msk.getUTCHours() === SNAPSHOT_HOUR_MSK && lastSnapDay !== day) {
         lastSnapDay = day;

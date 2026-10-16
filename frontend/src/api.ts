@@ -352,7 +352,7 @@ export type Arena = {
   models: { id: string; label: string; local: boolean }[];
   personas: { key: string; name: string; tagline: string }[];
   risk: { maxPositionPct: number; maxOrdersPerRun: number; maxTradesPerWeek: number; drawdownStopPct: number };
-  runHourMsk: number;
+  runHoursMsk: number[];
   paused: boolean;
   roundRunning: boolean;
   groups: ArenaGroup[];

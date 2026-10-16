@@ -161,7 +161,7 @@ function AgentPanel({ id, models, onChanged }: { id: number; models: ArenaData['
 
       {tab === 'journal' &&
         (runs.length === 0 ? (
-          <Empty>Решений пока нет: первый ход — в ближайший будний день в 11:00 МСК, или нажмите «Ход».</Empty>
+          <Empty>Решений пока нет: первый ход — в ближайшее торговое время (10:00, 13:00 или 16:00 МСК), или нажмите «Ход».</Empty>
         ) : (
           <ul className="divide-y divide-line/70">
             {runs.map((r) => (
@@ -210,7 +210,7 @@ function AgentPanel({ id, models, onChanged }: { id: number; models: ArenaData['
 const GROUP_INTRO: Record<ArenaGroupKey, { title: string; text: string; plan: (models: number, personas: number) => string }> = {
   main: {
     title: 'Основной турнир',
-    text: 'Пять агентов с разными характерами получают по одинаковому виртуальному счёту и каждый будний день в 11:00 МСК сами решают, что купить или продать. Сделки исполняются по живой цене биржи с комиссией 0,05%. Модель только предлагает сделки, а жёсткие лимиты (не больше 10% счёта в одной бумаге, 6 сделок в неделю, стоп при просадке 15%, без плеча и шортов) проверяет код.',
+    text: 'Пять агентов с разными характерами получают по одинаковому виртуальному счёту и три раза в день по будням (10:00, 13:00 и 16:00 МСК) сами решают, что купить или продать. Сделки исполняются по живой цене биржи с комиссией 0,05%. Модель только предлагает сделки, а жёсткие лимиты (не больше 10% счёта в одной бумаге, 12 сделок в неделю, стоп при просадке 15%, без плеча и шортов) проверяет код.',
     plan: () => '5 агентов: по одному на характер, модель у каждого можно менять',
   },
   models: {
@@ -433,7 +433,7 @@ export function Arena() {
         <Segmented value={tab} onChange={setTab} options={a.groups.map((g) => ({ value: g.key, label: `${g.title}${g.agents.length ? ` · ${g.agents.length}` : ''}` }))} />
         <span className="flex items-center gap-2 text-sm text-muted">
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-ink" title="Счета агентов виртуальные: живые цены биржи, комиссия 0,05%, настоящих денег нет">виртуально</span>
-          {a.paused ? <span className="rounded-full bg-hold/20 px-2 py-0.5 text-[11px] font-semibold text-ink">на паузе</span> : <>ходы по будням в {a.runHourMsk}:00 МСК</>}
+          {a.paused ? <span className="rounded-full bg-hold/20 px-2 py-0.5 text-[11px] font-semibold text-ink">на паузе</span> : <>ходы по будням в {a.runHoursMsk.map((h) => `${h}:00`).join(', ')} МСК</>}
           {anyRunning && <span className="text-ai">раунд идёт…</span>}
         </span>
         {total > 0 && (
