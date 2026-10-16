@@ -26,7 +26,10 @@ import { HttpError } from './http.js';
  */
 
 const COOKIE = 'trader_session';
-const SESSION_DAYS = 30;
+// Short sliding session: the app keeps it alive while on screen; a killed or backgrounded app is locked
+// by the next open, and the user signs in again with Face ID or the password.
+const SESSION_TTL_SEC = 3 * 60;
+const REFRESH_AFTER_SEC = 30;
 const MAX_FAILURES = 5;
 const LOCK_MINUTES = 15;
 
@@ -125,18 +128,21 @@ function sessionSecret(): string {
 }
 
 function issueSession(res: import('express').Response, method: string) {
-  const token = jwt.sign({ sub: 'owner', via: method }, sessionSecret(), { algorithm: 'HS256', expiresIn: `${SESSION_DAYS}d` });
-  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: SESSION_DAYS * 86_400_000 });
+  const token = jwt.sign({ sub: 'owner', via: method }, sessionSecret(), { algorithm: 'HS256', expiresIn: SESSION_TTL_SEC });
+  res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: isProd, maxAge: SESSION_TTL_SEC * 1000 });
 }
 
-export const requireAuth: RequestHandler = (req, _res, next) => {
+export const requireAuth: RequestHandler = (req, res, next) => {
   const token = req.cookies?.[COOKIE];
   if (!token) throw new HttpError(401, 'Требуется вход');
+  let payload: jwt.JwtPayload;
   try {
-    jwt.verify(token, sessionSecret(), { algorithms: ['HS256'] });
+    payload = jwt.verify(token, sessionSecret(), { algorithms: ['HS256'] }) as jwt.JwtPayload;
   } catch {
     throw new HttpError(401, 'Сессия истекла, войдите снова');
   }
+  // Sliding expiry: any request from an open app extends the session.
+  if (payload.iat && Date.now() / 1000 - payload.iat > REFRESH_AFTER_SEC) issueSession(res, String(payload.via ?? 'password'));
   next();
 };
 

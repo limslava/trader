@@ -30,15 +30,27 @@ const queryClient = new QueryClient({
 // Any 401 (expired session) from any request sends the user back to the login screen.
 setUnauthorizedHandler(() => queryClient.setQueryData(['me'], null));
 
-/** Like the password manager: once the app has been in the background for a while, the session is dropped
- *  and the next open asks for Face ID or the password again. */
+/**
+ * Like the password manager: the server session lives only a few minutes and is extended by requests, so the
+ * app pings while it is on screen. A killed or backgrounded app stops pinging, the session expires, and the
+ * next open asks for Face ID or the password. Returning from the background after 30 s locks right away.
+ */
 const LOCK_AFTER_MS = 30_000;
+const HEARTBEAT_MS = 45_000;
 
 function useAutoLock(enabled: boolean) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
     let hiddenAt = 0;
+    const lock = () => {
+      qc.clear();
+      qc.setQueryData(['me'], null);
+    };
+    const heartbeat = () => {
+      if (document.visibilityState !== 'visible') return;
+      api.me().catch((err) => err instanceof ApiError && err.status === 401 && lock());
+    };
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
         hiddenAt = Date.now();
@@ -46,14 +58,17 @@ function useAutoLock(enabled: boolean) {
       }
       if (hiddenAt && Date.now() - hiddenAt > LOCK_AFTER_MS) {
         hiddenAt = 0;
-        void api.logout().finally(() => {
-          qc.clear();
-          qc.setQueryData(['me'], null);
-        });
+        void api.logout().finally(lock);
+      } else {
+        heartbeat();
       }
     };
+    const timer = setInterval(heartbeat, HEARTBEAT_MS);
     document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [enabled, qc]);
 }
 

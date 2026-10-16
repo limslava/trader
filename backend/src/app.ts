@@ -58,8 +58,9 @@ export function createApp() {
   if (fs.existsSync(staticDir)) {
     // Vite hashes asset names, so they can be cached forever; index.html must always be revalidated.
     app.use('/assets', express.static(path.join(staticDir, 'assets'), { immutable: true, maxAge: '1y' }));
-    app.use(express.static(staticDir, { index: false, maxAge: '1h' }));
-    app.get('/{*path}', (_req, res) => res.sendFile(path.join(staticDir, 'index.html')));
+    app.use(express.static(staticDir, { index: false, maxAge: '1h', setHeaders: (res, file) => file.endsWith('.webmanifest') && res.setHeader('Cache-Control', 'no-cache') }));
+    // index.html must never be served stale, or a phone keeps running the previous build for an hour.
+    app.get('/{*path}', (_req, res) => res.sendFile(path.join(staticDir, 'index.html'), { headers: { 'Cache-Control': 'no-cache' } }));
   }
 
   const onError: ErrorRequestHandler = (err, req, res, _next) => {
