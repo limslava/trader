@@ -41,6 +41,15 @@ type Visual = {
 
 type Room = { group: ArenaGroup; top: number; height: number; rows: number; spots: Spot[] };
 
+/** Each tournament gets its own interior: open office, server lab, wooden trading floor. */
+type Theme = { floor: [number, number]; wall: [number, number]; desk: [number, number]; chair: [number, number]; panel: [number, number]; title: string };
+const THEMES: Record<string, Theme> = {
+  main: { floor: [176, 80], wall: [16, 176], desk: [128, 448], chair: [0, 128], panel: [16, 416], title: '#4a4660' },
+  models: { floor: [160, 160], wall: [16, 112], desk: [176, 448], chair: [16, 128], panel: [16, 416], title: '#e8e8f0' },
+  styles: { floor: [208, 96], wall: [16, 144], desk: [128, 448], chair: [0, 160], panel: [16, 416], title: '#3b2a1a' },
+};
+const themeOf = (key: string) => THEMES[key] ?? THEMES.main;
+
 const COLS_WIDE = 4;
 const COLS_NARROW = 2;
 const STATION_W = 5 * T;
@@ -60,14 +69,22 @@ function layout(groups: ArenaGroup[], cols: number) {
     const height = ROOM_PAD_TOP + rows * STATION_H + ROOM_PAD_BOTTOM;
     const lx = SIDE + cols * STATION_W + T; // lounge column
     const by = top + height - ROOM_PAD_BOTTOM; // bottom strip
-    const spots: Spot[] = [
-      { kind: 'cooler', x: lx + 4, y: top + ROOM_PAD_TOP + 22, face: 1, busy: null },
-      { kind: 'coffee', x: lx + 40, y: top + ROOM_PAD_TOP + 22, face: 1, busy: null },
-      { kind: 'sofa', x: lx + 2, y: top + ROOM_PAD_TOP + 58, face: 3, busy: null },
-      { kind: 'sofa', x: lx + 18, y: top + ROOM_PAD_TOP + 58, face: 3, busy: null },
-      { kind: 'meet', x: SIDE + 8, y: by + 22, face: 0, busy: null },
-      { kind: 'meet', x: SIDE + 8 + 96, y: by + 22, face: 2, busy: null },
-    ];
+    const spots: Spot[] =
+      g.key === 'models'
+        ? [
+            { kind: 'cooler', x: lx + 4, y: top + ROOM_PAD_TOP + 86, face: 1, busy: null },
+            { kind: 'coffee', x: lx + 40, y: top + ROOM_PAD_TOP + 86, face: 1, busy: null },
+            { kind: 'meet', x: SIDE + 8, y: by + 22, face: 0, busy: null },
+            { kind: 'meet', x: SIDE + 8 + 96, y: by + 22, face: 2, busy: null },
+          ]
+        : [
+            { kind: 'cooler', x: lx + 4, y: top + ROOM_PAD_TOP + 22, face: 1, busy: null },
+            { kind: 'coffee', x: lx + 40, y: top + ROOM_PAD_TOP + 22, face: 1, busy: null },
+            { kind: 'sofa', x: lx + 2, y: top + ROOM_PAD_TOP + 58, face: 3, busy: null },
+            { kind: 'sofa', x: lx + 18, y: top + ROOM_PAD_TOP + 58, face: 3, busy: null },
+            { kind: 'meet', x: SIDE + 8, y: by + 22, face: 0, busy: null },
+            { kind: 'meet', x: SIDE + 8 + 96, y: by + 22, face: 2, busy: null },
+          ];
     rooms.push({ group: g, top, height, rows, spots });
     top += height;
   }
@@ -111,8 +128,17 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
       return map;
     };
 
-    const resize = () => {
-      cols = wrap.clientWidth >= 620 ? COLS_WIDE : COLS_NARROW;
+    let lastW = -1;
+    let lastKey = '';
+    const resize = (force = false) => {
+      // A page scrollbar appearing or vanishing changes the width by ~15px, which would change the canvas
+      // height, toggle the scrollbar again and loop forever (wiping the drawing each time). Ignore such jitter.
+      const w = wrap.clientWidth;
+      const k = latest.current.groups.map((g) => `${g.key}:${g.agents.length}`).join('|');
+      if (!force && k === lastKey && Math.abs(w - lastW) < 24) return;
+      lastW = w;
+      lastKey = k;
+      cols = w >= 620 ? COLS_WIDE : COLS_NARROW;
       const l = layout(latest.current.groups, cols);
       rooms = l.rooms;
       const scale = Math.max(1, wrap.clientWidth / l.width);
@@ -235,33 +261,63 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
 
     const drawRoom = (room: Room) => {
       const { top, height } = room;
-      for (let y = top; y < top + height; y += T) for (let x = 0; x < canvas.width; x += T) tile('room-office', 176, 80, T, T, x, y);
-      for (let x = 0; x < canvas.width; x += T) tile('room-office', 16, 176, T, 2 * T, x, top);
-      // Wall: TV with the news, whiteboard chart, a shelf.
-      tile('tv', (Math.floor(clock * 6) % 36) * 32, 0, 32, 32, SIDE + 8, top + 4);
-      tile('office', 144, 192, 32, 32, canvas.width - LOUNGE_W - T - 8, top + 2);
-      tile('office', 112, 192, 32, 32, canvas.width - LOUNGE_W + 12, top + 2);
+      const th = themeOf(room.group.key);
+      const srv = (Math.floor(clock * 3) % 3) * 16;
+      for (let y = top; y < top + height; y += T) for (let x = 0; x < canvas.width; x += T) tile('room-office', th.floor[0], th.floor[1], T, T, x, y);
+      for (let x = 0; x < canvas.width; x += T) tile('room-office', th.wall[0], th.wall[1], T, 2 * T, x, top);
       const lx = SIDE + cols * STATION_W + T;
       const ly = top + ROOM_PAD_TOP;
-      // Lounge column: cooler, coffee corner, sofa and table, palm, server rack.
-      tile('office', 192, 240, 16, 32, lx + 4, ly - 12);
-      tile('living', 64, 480, 32, 32, lx + 32, ly - 12);
-      tile('coffee', (Math.floor(clock * 2) % 3) * 32, 0, 32, 32, lx + 32, ly - 18);
-      tile('living', 0, 448, 48, 32, lx, ly + 44);
-      tile('living', 0, 480, 48, 32, lx, ly + 76);
-      tile('office', 96, 128, 16, 32, lx + 56, ly + 52);
-      tile('living', 208, 0, 48, 32, lx + 20, top + height - ROOM_PAD_BOTTOM + 4);
-      tile('server', (Math.floor(clock * 3) % 3) * 16, 0, 16, 48, canvas.width - SIDE - 20, top + height - ROOM_PAD_BOTTOM + 8);
-      // Conference corner at the bottom-left.
       const by = top + height - ROOM_PAD_BOTTOM;
+      if (room.group.key === 'models') {
+        // Server lab: racks along the wall and the lounge, monitors instead of a TV, no sofa.
+        tile('office', 144, 192, 32, 32, SIDE + 8, top + 2);
+        tile('office', 112, 192, 32, 32, SIDE + 48, top + 2);
+        tile('office', 144, 192, 32, 32, canvas.width - LOUNGE_W - T - 8, top + 2);
+        for (let i = 0; i < 3; i++) tile('server', srv, 0, 16, 48, lx + 4 + i * 20, ly - 14);
+        tile('office', 192, 240, 16, 32, lx + 4, ly + 52);
+        tile('living', 64, 480, 32, 32, lx + 32, ly + 52);
+        tile('coffee', (Math.floor(clock * 2) % 3) * 32, 0, 32, 32, lx + 32, ly + 46);
+        tile('office', 96, 160, 16, 32, lx + 72, ly + 52);
+        tile('living', 208, 0, 48, 32, lx + 20, by + 4);
+        for (let i = 0; i < 2; i++) tile('server', srv, 0, 16, 48, canvas.width - SIDE - 20 - i * 20, by + 8);
+      } else if (room.group.key === 'styles') {
+        // Trading floor: wood, warm chairs, plants everywhere, two sofas by the window wall.
+        tile('tv', (Math.floor(clock * 6) % 36) * 32, 0, 32, 32, SIDE + 8, top + 4);
+        tile('tv', ((Math.floor(clock * 6) + 12) % 36) * 32, 0, 32, 32, SIDE + 48, top + 4);
+        tile('office', 144, 192, 32, 32, canvas.width - LOUNGE_W - T - 8, top + 2);
+        tile('living', 208, 0, 48, 32, lx + 24, top + 8);
+        tile('office', 192, 240, 16, 32, lx + 4, ly - 12);
+        tile('living', 64, 480, 32, 32, lx + 32, ly - 12);
+        tile('coffee', (Math.floor(clock * 2) % 3) * 32, 0, 32, 32, lx + 32, ly - 18);
+        tile('living', 0, 448, 48, 32, lx, ly + 44);
+        tile('living', 0, 480, 48, 32, lx, ly + 76);
+        tile('office', 96, 128, 16, 32, lx + 56, ly + 52);
+        tile('office', 96, 160, 16, 32, lx + 72, ly + 84);
+        tile('office', 96, 128, 16, 32, lx + 8, by + 20);
+        tile('living', 208, 0, 48, 32, canvas.width - SIDE - 52, by + 4);
+      } else {
+        // Open office: TV, whiteboard, shelf, cooler, coffee, sofa, palm, one server rack.
+        tile('tv', (Math.floor(clock * 6) % 36) * 32, 0, 32, 32, SIDE + 8, top + 4);
+        tile('office', 144, 192, 32, 32, canvas.width - LOUNGE_W - T - 8, top + 2);
+        tile('office', 112, 192, 32, 32, canvas.width - LOUNGE_W + 12, top + 2);
+        tile('office', 192, 240, 16, 32, lx + 4, ly - 12);
+        tile('living', 64, 480, 32, 32, lx + 32, ly - 12);
+        tile('coffee', (Math.floor(clock * 2) % 3) * 32, 0, 32, 32, lx + 32, ly - 18);
+        tile('living', 0, 448, 48, 32, lx, ly + 44);
+        tile('living', 0, 480, 48, 32, lx, ly + 76);
+        tile('office', 96, 128, 16, 32, lx + 56, ly + 52);
+        tile('living', 208, 0, 48, 32, lx + 20, by + 4);
+        tile('server', srv, 0, 16, 48, canvas.width - SIDE - 20, by + 8);
+      }
+      // Conference corner at the bottom-left, in every room.
       tile('conf', 80, 96, 80, 48, SIDE + 24, by + 10);
       tile('conf', 176, 96, 16, 32, SIDE + 8, by + 18);
       tile('conf', 176, 96, 16, 32, SIDE + 104, by + 18);
       tile('office', 96, 160, 16, 32, SIDE + 120, by + 24);
       ctx.font = '600 9px Onest, Arial, sans-serif';
       ctx.textBaseline = 'top';
-      ctx.fillStyle = '#4a4660';
-      ctx.fillText(`${room.group.title} · ${room.group.agents.length}`, SIDE + 48, top + 6);
+      ctx.fillStyle = th.title;
+      ctx.fillText(`${room.group.title} · ${room.group.agents.length}`, SIDE + 88, top + 6);
     };
 
     const frame = (now: number) => {
@@ -298,7 +354,9 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
       for (const room of rooms) drawRoom(room);
       for (const a of agents) {
         const e = map.get(a.id);
-        if (e) tile('office', 16, 416, 48, 48, e.home.x, e.home.y - T);
+        if (!e) continue;
+        const th = themeOf(e.room.group.key);
+        tile('office', th.panel[0], th.panel[1], 48, 48, e.home.x, e.home.y - T);
       }
       const leaders = new Set(rooms.map((r) => r.group.agents[0]?.id));
       const order = agents.filter((a) => map.has(a.id) && visuals.current.has(a.id)).sort((p, q) => visuals.current.get(p.id)!.y - visuals.current.get(q.id)!.y);
@@ -338,8 +396,9 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
           ctx.fillRect(cx + 5, cy, 1, 2);
           ctx.fillRect(cx + 2, cy, 2, 2);
         }
-        if (!atDesk) tile('office', 0, 128, 16, 32, e.home.x + T, e.home.y + 2);
-        tile('office', 128, 448, 48, 32, e.home.x, e.home.y + 30);
+        const th = themeOf(e.room.group.key);
+        if (!atDesk) tile('office', th.chair[0], th.chair[1], 16, 32, e.home.x + T, e.home.y + 2);
+        tile('office', th.desk[0], th.desk[1], 48, 32, e.home.x, e.home.y + 30);
         tile('office', 176, 416, 16, 32, e.home.x + T, e.home.y + 26);
         tile('office', 128, 416, 16, 32, e.home.x, e.home.y + 22);
       }
@@ -386,16 +445,16 @@ export function Office({ groups, selected, onSelect }: { groups: ArenaGroup[]; s
     canvas.addEventListener('mousemove', onMove);
     canvas.addEventListener('click', onClick);
     resizeRef.current = () => {
-      if (Object.keys(sheets).length) resize();
+      if (Object.keys(sheets).length) resize(true);
     };
-    const ro = new ResizeObserver(resize);
+    const ro = new ResizeObserver(() => resize());
     ro.observe(wrap);
 
     const names = ['room-office', 'office', 'living', 'conf', 'tv', 'server', 'coffee', ...Array.from({ length: CHARS }, (_, i) => `char-${String(i + 1).padStart(2, '0')}`)];
     Promise.all(names.map((n) => load(n).then((img) => (sheets[n] = img))))
       .then(() => {
         if (!alive) return;
-        resize();
+        resize(true);
         raf = requestAnimationFrame(frame);
       })
       .catch(() => undefined);
