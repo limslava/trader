@@ -55,12 +55,17 @@ npm run dev                           # API :3001 + фронтенд :5173
 | `AI_API_KEY` | для AI | Ключ API. Без него работает всё, кроме анализа |
 | `AI_BASE_URL` | | По умолчанию `https://api.deepseek.com` |
 | `AI_MODEL` | | По умолчанию `deepseek-chat` |
+| `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGINS` | | Домен и origin сайта для passkey (по умолчанию localhost) |
 | `OLLAMA_URL` | | Локальная Ollama для агентов арены, по умолчанию `http://localhost:11434` |
 | `TINKOFF_TOKEN` | для отчётности | Токен T-Invest API (для песочницы) |
 | `TINKOFF_SANDBOX` | | `true` — песочница (по умолчанию) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | для дайджеста | Бот от @BotFather и id чата; дайджест по понедельникам в 9:00 МСК |
 
 Другой провайдер — поменять `AI_BASE_URL` и `AI_MODEL`, например OpenRouter (`https://openrouter.ai/api/v1`) даёт доступ к Claude, GPT и др.
+
+## Деплой на Legion
+
+Домашний сервер за Caddy с клиентским сертификатом, 2FA и passkey — см. [docs/LEGION.md](docs/LEGION.md); обновление одной командой `scripts/deploy-legion.sh`.
 
 ## Деплой на Amvera
 

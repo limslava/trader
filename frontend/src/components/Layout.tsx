@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, History, House, LineChart, LogOut, Moon, Search, Sun, Swords, Wallet } from 'lucide-react';
+import { BookOpen, History, House, LineChart, LogOut, Moon, Search, ShieldCheck, Sun, Swords, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import { api } from '../api';
@@ -14,6 +14,7 @@ const TITLES: Record<string, string> = {
   '/arena': 'Арена',
   '/history': 'История',
   '/learn': 'Обучение',
+  '/settings': 'Безопасность',
 };
 
 const NAV = [
@@ -113,6 +114,9 @@ export function Layout() {
           ))}
         </nav>
         <div className="mt-auto flex flex-col items-center gap-1">
+          <NavLink to="/settings" className={({ isActive }) => `${railBtn} ${isActive ? 'bg-surface-2 text-ink' : ''}`} aria-label="Безопасность" title="Безопасность">
+            <ShieldCheck className="size-5" strokeWidth={1.75} />
+          </NavLink>
           <button onClick={toggle} className={railBtn} aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
             {theme === 'dark' ? <Sun className="size-5" strokeWidth={1.75} /> : <Moon className="size-5" strokeWidth={1.75} />}
           </button>
@@ -138,6 +142,9 @@ export function Layout() {
           </button>
           <div className="ml-auto flex items-center gap-2">
             <MarketStrip />
+            <NavLink to="/settings" className={`${railBtn} md:hidden`} aria-label="Безопасность">
+              <ShieldCheck className="size-5" />
+            </NavLink>
             <button onClick={toggle} className={`${railBtn} md:hidden`} aria-label={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}>
               {theme === 'dark' ? <Sun className="size-5" /> : <Moon className="size-5" />}
             </button>

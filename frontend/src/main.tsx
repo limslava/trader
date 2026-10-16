@@ -14,6 +14,7 @@ import { Instrument } from './pages/Instrument';
 import { Learn } from './pages/Learn';
 import { Market } from './pages/Market';
 import { Portfolio } from './pages/Portfolio';
+import { Settings } from './pages/Settings';
 import { Login } from './pages/Login';
 import { ThemeProvider } from './theme';
 
@@ -56,6 +57,7 @@ function App() {
         <Route path="arena" element={<Arena />} />
         <Route path="history" element={<History />} />
         <Route path="learn" element={<Learn />} />
+        <Route path="settings" element={<Settings />} />
         <Route path="*" element={<Home />} />
       </Route>
     </Routes>

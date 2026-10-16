@@ -389,6 +389,9 @@ export type ArenaAgentDetail = {
   curve: { day: string; equity: number; imoex: number | null }[];
 };
 
+export type AuthStatus = { totpEnabled: boolean; passkeys: number; rpId: string };
+export type Passkey = { id: number; name: string; createdAt: string; lastUsedAt: string | null };
+
 export type ImoexMember = { secid: string; shortname: string; weight: number; sector: string; quote: Quote | null };
 
 export class ApiError extends Error {
@@ -413,7 +416,8 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401 && path !== '/auth/me' && path !== '/auth/login') onUnauthorized();
+    // A wrong password on the security page is also a 401; only non-auth routes mean the session is gone.
+    if (res.status === 401 && !path.startsWith('/auth/')) onUnauthorized();
     throw new ApiError(res.status, data.error ?? `Ошибка ${res.status}`);
   }
   return data as T;
@@ -423,8 +427,18 @@ const enc = encodeURIComponent;
 
 export const api = {
   me: () => request<{ ok: true }>('GET', '/auth/me'),
-  login: (password: string) => request<{ ok: true }>('POST', '/auth/login', { password }),
+  login: (password: string, code?: string) => request<{ ok: true }>('POST', '/auth/login', { password, code }),
   logout: () => request<{ ok: true }>('POST', '/auth/logout'),
+  authStatus: () => request<AuthStatus>('GET', '/auth/status'),
+  totpSetup: (password: string) => request<{ secret: string; qr: string }>('POST', '/auth/2fa/setup', { password }),
+  totpEnable: (code: string) => request('POST', '/auth/2fa/enable', { code }),
+  totpDisable: (password: string, code: string) => request('POST', '/auth/2fa/disable', { password, code }),
+  passkeys: () => request<Passkey[]>('GET', '/auth/passkeys'),
+  passkeyRegisterOptions: (password: string) => request<unknown>('POST', '/auth/passkeys/register/options', { password }),
+  passkeyRegisterVerify: (name: string, response: unknown) => request('POST', '/auth/passkeys/register/verify', { name, response }),
+  passkeyRemove: (id: number, password: string) => request('DELETE', `/auth/passkeys/${id}`, { password }),
+  passkeyLoginOptions: () => request<unknown>('POST', '/auth/passkeys/login/options'),
+  passkeyLoginVerify: (response: unknown) => request<{ ok: true }>('POST', '/auth/passkeys/login/verify', response),
 
   search: (q: string) => request<SearchResult[]>('GET', `/market/search?q=${enc(q)}`),
   quote: (secid: string) => request<Quote>('GET', `/market/quote/${enc(secid)}`),

@@ -1,0 +1,75 @@
+# Прод-стек на Legion (trader.vlbrain.ru).
+#   docker compose -f docker-compose.legion.yml up -d --build
+#
+# Наружу ничего не публикуется: контейнер app подключён к сети second-brain_default,
+# и Caddy проекта second-brain проксирует на него trader.vlbrain.ru (TLS Let's Encrypt
+# + обязательный клиентский сертификат, см. docs/LEGION.md). Локальные модели арены —
+# общая Ollama на хосте Legion (порт 11434, GPU). Секреты — в .env рядом (права 600).
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trader
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [appnet]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d trader"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: "80"
+      DATABASE_URL: postgresql://trader:${POSTGRES_PASSWORD}@db:5432/trader
+      OLLAMA_URL: http://host.docker.internal:11434
+      WEBAUTHN_RP_ID: trader.vlbrain.ru
+      WEBAUTHN_ORIGINS: https://trader.vlbrain.ru
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      appnet: {}
+      edge:
+        aliases: [trader-web]
+
+  # Ежедневный pg_dump, хранится 14 последних копий (./backups).
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: trader
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: trader
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [appnet]
+    command: >
+      sh -c 'while true; do
+        pg_dump -Fc -f "/backups/trader-$(date +%Y%m%d-%H%M%S).dump" && ls -1t /backups/trader-*.dump | tail -n +15 | xargs -r rm -f;
+        sleep 86400; done'
+
+networks:
+  appnet:
+    internal: true
+  edge:
+    external: true
+    name: second-brain_default
+
+volumes:
+  pgdata:

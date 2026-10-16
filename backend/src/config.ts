@@ -26,6 +26,10 @@ const schema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().default(''),
   TELEGRAM_CHAT_ID: z.string().default(''),
 
+  // Passkeys (WebAuthn): the site's domain and the exact origins the browser reports.
+  WEBAUTHN_RP_ID: z.string().default('localhost'),
+  WEBAUTHN_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5175,http://localhost:5176'),
+
   MOEX_ISS_URL: z.string().url().default('https://iss.moex.com/iss'),
   STATIC_DIR: z.string().optional(),
 });
