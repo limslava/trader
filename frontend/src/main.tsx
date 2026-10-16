@@ -32,42 +32,58 @@ setUnauthorizedHandler(() => queryClient.setQueryData(['me'], null));
 
 /**
  * Like the password manager: the server session lives only a few minutes and is extended by requests, so the
- * app pings while it is on screen. A killed or backgrounded app stops pinging, the session expires, and the
- * next open asks for Face ID or the password. Returning from the background after 30 s locks right away.
+ * app pings while it is on screen and in use. A killed or backgrounded app stops pinging, the session expires,
+ * and the next open asks for Face ID or the password. Returning from the background after the grace period
+ * (enough to fetch a code from the authenticator) locks right away, as does 15 minutes without any activity.
+ * While hidden the content is blurred so the app switcher shows nothing readable.
  */
-const LOCK_AFTER_MS = 30_000;
+const HIDE_GRACE_MS = 60_000;
+const IDLE_LOCK_MS = 15 * 60_000;
 const HEARTBEAT_MS = 45_000;
 
 function useAutoLock(enabled: boolean) {
   const qc = useQueryClient();
   useEffect(() => {
     if (!enabled) return;
+    const root = document.documentElement;
     let hiddenAt = 0;
+    let lastActivity = Date.now();
     const lock = () => {
+      root.classList.remove('privacy-blur');
       qc.clear();
       qc.setQueryData(['me'], null);
+      void api.logout().catch(() => undefined);
     };
     const heartbeat = () => {
       if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastActivity > IDLE_LOCK_MS) return lock();
       api.me().catch((err) => err instanceof ApiError && err.status === 401 && lock());
     };
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        hiddenAt = Date.now();
-        return;
-      }
-      if (hiddenAt && Date.now() - hiddenAt > LOCK_AFTER_MS) {
-        hiddenAt = 0;
-        void api.logout().finally(lock);
-      } else {
-        heartbeat();
-      }
+    const onActivity = () => (lastActivity = Date.now());
+    const onHide = () => {
+      if (!hiddenAt) hiddenAt = Date.now();
+      root.classList.add('privacy-blur');
     };
+    const onShow = () => {
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      root.classList.remove('privacy-blur');
+      if (away > HIDE_GRACE_MS || Date.now() - lastActivity > IDLE_LOCK_MS) lock();
+      else heartbeat();
+    };
+    const onVisibility = () => (document.visibilityState === 'hidden' ? onHide() : onShow());
     const timer = setInterval(heartbeat, HEARTBEAT_MS);
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('pageshow', onShow);
+    for (const ev of ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const) window.addEventListener(ev, onActivity, { passive: true });
     return () => {
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('pageshow', onShow);
+      for (const ev of ['pointerdown', 'keydown', 'touchstart', 'scroll'] as const) window.removeEventListener(ev, onActivity);
+      root.classList.remove('privacy-blur');
     };
   }, [enabled, qc]);
 }
