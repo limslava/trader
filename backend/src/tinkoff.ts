@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import tls from 'node:tls';
-import { Agent } from 'undici';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { config } from './config.js';
 import { HttpError, todayMsk, TtlCache } from './http.js';
 
@@ -48,12 +48,12 @@ function translateError(message: string): string {
 
 export async function call<T>(method: string, body: unknown): Promise<T> {
   if (!tinkoffConfigured()) throw new HttpError(503, 'T-Invest не настроен: задайте TINKOFF_TOKEN в .env');
-  const res = await fetch(BASE + method, {
+  // undici's own fetch: the global one is Node's bundled undici, whose version may not accept our Agent.
+  const res = await undiciFetch(BASE + method, {
     method: 'POST',
     headers: { Authorization: `Bearer ${config.TINKOFF_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000),
-    // @ts-expect-error undici's dispatcher option is not in the DOM fetch types
     dispatcher,
   });
   const data = (await res.json().catch(() => ({}))) as { message?: string; description?: string };
