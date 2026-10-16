@@ -1,12 +1,31 @@
 import { startAuthentication } from '@simplewebauthn/browser';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, ScanFace } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { Button, ErrorText, Spinner } from '../components/ui';
 
+// Remembered per device so the Face ID screen appears instantly, before the server answers.
+const HINT = 'trader-passkey';
+const readHint = () => {
+  try {
+    return localStorage.getItem(HINT) === '1';
+  } catch {
+    return false;
+  }
+};
+
 export function Login({ onSuccess }: { onSuccess: () => void }) {
   const status = useQuery({ queryKey: ['authStatus'], queryFn: api.authStatus, staleTime: 60_000, retry: false });
+  const hinted = readHint();
+  useEffect(() => {
+    if (!status.data) return;
+    try {
+      localStorage.setItem(HINT, status.data.passkeys > 0 ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  }, [status.data]);
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [needCode, setNeedCode] = useState(false);
@@ -46,9 +65,11 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  const hasPasskey = (status.data?.passkeys ?? 0) > 0;
+  const hasPasskey = status.data ? status.data.passkeys > 0 : hinted;
   const [usePassword, setUsePassword] = useState(false);
   const faceFirst = hasPasskey && !usePassword;
+  // No hint and no answer yet: show only the logo instead of flashing the password form.
+  const pending = !status.data && !status.error && !hinted;
 
   return (
     <div className="relative grid min-h-dvh place-items-center overflow-hidden px-4">
@@ -58,7 +79,11 @@ export function Login({ onSuccess }: { onSuccess: () => void }) {
         <h1 className="text-3xl font-semibold tracking-tight">Trader</h1>
         <p className="mt-2 text-[15px] text-muted">{hasPasskey ? 'Вход заблокирован' : 'AI-аналитика Московской биржи'}</p>
 
-        {faceFirst ? (
+        {pending ? (
+          <div className="mt-10 flex h-12 items-center justify-center text-muted">
+            <Spinner />
+          </div>
+        ) : faceFirst ? (
           <div className="mt-10 space-y-3">
             <Button type="button" variant="primary" size="lg" onClick={passkey} disabled={busy} className="w-full">
               {busy ? <Spinner /> : <ScanFace className="size-5" aria-hidden />} {busy ? 'Проверяю…' : 'Войти по Face ID'}
