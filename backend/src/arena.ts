@@ -572,9 +572,57 @@ async function snapshotAll() {
 }
 
 /** Weekdays at RUN_HOURS_MSK: decisions; 19:00 MSK: closing snapshots. Checked every minute. */
+/** Called once at startup: a fresh process has no runs in flight, so every 'running' row is an orphan of the previous one. */
+export async function recoverStaleRuns(): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE arena_runs SET status = 'failed', finished_at = now(), error = 'прервано перезапуском сервера'
+     WHERE status = 'running'`,
+  );
+  return rowCount ?? 0;
+}
+
+const mskNow = () => new Date(Date.now() + 3 * 3600_000);
+const isWeekday = (msk: Date) => msk.getUTCDay() >= 1 && msk.getUTCDay() <= 5;
+
+/**
+ * After a restart (deploys happen mid-round) give agents that missed the current slot their turn, as long as
+ * the slot is still fresh: within two hours of its start on a weekday.
+ */
+export async function catchUp(): Promise<void> {
+  const msk = mskNow();
+  if (!isWeekday(msk) || roundInFlight || (await isPaused())) return;
+  const hour = msk.getUTCHours() + msk.getUTCMinutes() / 60;
+  const slot = [...RUN_HOURS_MSK].reverse().find((h) => hour >= h && hour < h + 2);
+  if (slot === undefined) return;
+  const slotStart = new Date(Date.UTC(msk.getUTCFullYear(), msk.getUTCMonth(), msk.getUTCDate(), slot - 3));
+  const { rows } = await pool.query<{ id: number }>(
+    `SELECT a.id FROM arena_agents a WHERE a.status = 'active'
+       AND NOT EXISTS (SELECT 1 FROM arena_runs r WHERE r.agent_id = a.id AND r.started_at >= $1 AND r.status <> 'failed')
+     ORDER BY a.model NULLS FIRST, a.id`,
+    [slotStart.toISOString()],
+  );
+  if (rows.length === 0) return;
+  console.log(`Arena: catching up ${rows.length} agent(s) for the ${slot}:00 MSK slot`);
+  roundInFlight = true;
+  try {
+    const universe = await buildUniverse();
+    for (const { id } of rows) {
+      if (agentRunning(id)) continue;
+      await runAgent(id, universe).catch((err) => console.error(`Arena: catch-up agent ${id} failed:`, err instanceof Error ? err.message : err));
+    }
+  } finally {
+    roundInFlight = false;
+  }
+}
+
 export function scheduleArena() {
   let lastRunSlot = '';
   let lastSnapDay = '';
+  // Startup: close runs orphaned by the previous process, then finish the current slot if it was interrupted.
+  recoverStaleRuns()
+    .then((n) => n && console.log(`Arena: ${n} stale run(s) marked failed`))
+    .then(() => catchUp())
+    .catch((err) => console.error('Arena startup:', err));
   setInterval(async () => {
     const msk = new Date(Date.now() + 3 * 3600_000);
     const day = msk.toISOString().slice(0, 10);

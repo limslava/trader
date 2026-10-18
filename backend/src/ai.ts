@@ -167,6 +167,22 @@ async function chat(messages: { role: string; content: string }[], model = confi
  * and a context window large enough for the Arena data package. A 12–14B model on a laptop needs minutes.
  */
 async function chatOllama(messages: { role: string; content: string }[], model: string): Promise<string> {
+  // Ollama refuses connections for a while when it is loading a large model or restarting: wait and retry.
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 30_000 * attempt));
+    try {
+      return await chatOllamaOnce(messages, model);
+    } catch (err) {
+      lastErr = err;
+      if (!(err instanceof HttpError && err.status === 503)) throw err;
+      console.warn(`Ollama unavailable (attempt ${attempt + 1}/4): ${err.message}`);
+    }
+  }
+  throw lastErr;
+}
+
+async function chatOllamaOnce(messages: { role: string; content: string }[], model: string): Promise<string> {
   const res = await fetch(`${config.OLLAMA_URL.replace(/\/$/, '')}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
