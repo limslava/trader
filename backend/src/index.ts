@@ -2,11 +2,13 @@ import { createApp } from './app.js';
 import { config } from './config.js';
 import { migrate, pool } from './db.js';
 import { scheduleArena } from './arena.js';
+import { scheduleMorningBrief } from './briefs.js';
 import { scheduleWeeklyDigest } from './digest.js';
 
 await migrate();
 scheduleWeeklyDigest();
 scheduleArena();
+scheduleMorningBrief();
 
 const server = createApp().listen(config.PORT, () => {
   console.log(`Trader API listening on http://localhost:${config.PORT}`);

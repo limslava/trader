@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RotateCw } from 'lucide-react';
 import { Link } from 'react-router';
 import { api, type Analysis } from '../api';
 import { ScorecardCard } from '../components/ScorecardCard';
-import { Empty, ErrorText, Monogram, SIGNAL_META, Skeleton, Surface } from '../components/ui';
+import { Button, Empty, ErrorText, Monogram, SIGNAL_META, Skeleton, Surface } from '../components/ui';
 import { price } from '../format';
 
 function groupByDay(list: Analysis[]) {
@@ -15,10 +16,24 @@ function groupByDay(list: Analysis[]) {
 }
 
 export function History() {
-  const { data, isLoading, error } = useQuery({ queryKey: ['analyses', 'all'], queryFn: () => api.analyses() });
+  const qc = useQueryClient();
+  const { data, isLoading, error } = useQuery({ queryKey: ['analyses', 'all'], queryFn: () => api.analyses(), refetchInterval: 30_000 });
+  const brief = useQuery({ queryKey: ['briefStatus'], queryFn: api.briefStatus, refetchInterval: 10_000 });
+  const run = useMutation({ mutationFn: api.briefRun, onSuccess: () => setTimeout(() => qc.invalidateQueries({ queryKey: ['briefStatus'] }), 500) });
+  const running = !!brief.data?.running;
 
   return (
     <div className="space-y-5">
+      <Surface className="flex flex-wrap items-center gap-3 px-5 py-3 md:px-7">
+        <p className="min-w-0 flex-1 text-sm text-muted">
+          Обзоры рынка, вотчлиста и портфеля и вердикты по вашим бумагам обновляются сами по будням в 09:30 МСК.
+          {running && <span className="text-ai"> Сейчас идёт обновление, займёт пару минут…</span>}
+        </p>
+        <Button variant="ai" size="sm" onClick={() => run.mutate()} disabled={running || run.isPending}>
+          <RotateCw className={`size-4 ${running ? 'animate-spin' : ''}`} aria-hidden /> Обновить сейчас
+        </Button>
+        <ErrorText error={run.error} />
+      </Surface>
       <ScorecardCard />
       <ErrorText error={error} />
       {isLoading && <Skeleton className="h-64 rounded-[18px]" />}

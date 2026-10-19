@@ -98,7 +98,11 @@ analysisRouter.delete('/:id', async (req, res) => {
 analysisRouter.post('/:secid', async (req, res) => {
   const secid = secidSchema.parse(req.params.secid);
   const { question } = z.object({ question: z.string().trim().max(1000).optional() }).parse(req.body ?? {});
+  res.json(toDto(await createAnalysis(secid, question)));
+});
 
+/** Full single-instrument analysis: data package → model → stored verdict. Shared by the API and the morning brief. */
+export async function createAnalysis(secid: string, question?: string): Promise<Row> {
   const [quote, daily] = await Promise.all([getQuote(secid), getCandles(secid, 24, daysAgo(400))]);
   if (daily.length < 30) throw new HttpError(422, 'Слишком мало истории торгов для анализа');
   const indicators = computeIndicators(daily);
@@ -163,5 +167,5 @@ analysisRouter.post('/:secid', async (req, res) => {
       JSON.stringify(news),
     ],
   );
-  res.json(toDto(rows[0]));
-});
+  return rows[0];
+}

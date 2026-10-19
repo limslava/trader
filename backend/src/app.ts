@@ -8,6 +8,7 @@ import { authRouter, requireAuth } from './auth.js';
 import { config } from './config.js';
 import { pool } from './db.js';
 import { HttpError } from './http.js';
+import { briefInFlight, runMorningBriefOnce } from './briefs.js';
 import { buildDigest, sendTelegram, telegramConfigured } from './digest.js';
 import { analysisRouter } from './routes/analysis.js';
 import { arenaRouter } from './routes/arena.js';
@@ -43,6 +44,13 @@ export function createApp() {
   app.use('/api/news', requireAuth, articleRouter);
   app.use('/api/screener', requireAuth, screenerRouter);
   app.use('/api/arena', requireAuth, arenaRouter);
+  // Manual trigger for the morning brief (reviews + verdicts for watchlist and portfolio).
+  app.post('/api/brief/run', requireAuth, (_req, res) => {
+    if (briefInFlight()) throw new HttpError(409, 'Утренний разбор уже идёт');
+    void runMorningBriefOnce();
+    res.status(202).json({ ok: true });
+  });
+  app.get('/api/brief/status', requireAuth, (_req, res) => res.json({ running: briefInFlight() }));
   app.get('/api/digest/status', requireAuth, (_req, res) => res.json({ configured: telegramConfigured() }));
   app.get('/api/digest/preview', requireAuth, async (_req, res) => res.json({ text: await buildDigest() }));
   app.post('/api/digest/send', requireAuth, async (_req, res) => {

@@ -151,6 +151,12 @@ async function runReview(id: number, scope: ReviewScope, secids: string[]) {
 /** Starts a review and returns 202 with its id; the client polls GET /review/:id until status != running. */
 reviewRouter.post('/', async (req, res) => {
   const scope = scopeSchema.parse(req.body?.scope);
+  const { job } = await startReview(scope);
+  res.status(202).json(toDto(job));
+});
+
+/** Creates the review row and runs the model in the background; `done` resolves when the job finishes. */
+export async function startReview(scope: ReviewScope): Promise<{ job: Row; done: Promise<void> }> {
   if (isRunning(`review:${scope}`)) throw new HttpError(409, 'Обзор уже выполняется — подождите, он скоро появится');
   const secids = await scopeSecids(scope);
   const { rows } = await pool.query<Row>(
@@ -158,12 +164,12 @@ reviewRouter.post('/', async (req, res) => {
     [config.AI_MODEL, scope, secids],
   );
   const job = rows[0];
-
-  void guarded(`review:${scope}`, () => runReview(job.id, scope, secids)).catch(async (err: unknown) => {
-    const message = err instanceof Error ? err.message : String(err);
-    if (!(err instanceof HttpError && err.status === 409)) console.error(`Review ${job.id} failed: ${message}`);
-    await pool.query(`UPDATE reviews SET status = 'failed', error = $2 WHERE id = $1`, [job.id, message]);
-  });
-
-  res.status(202).json(toDto(job));
-});
+  const done = guarded(`review:${scope}`, () => runReview(job.id, scope, secids))
+    .then(() => undefined)
+    .catch(async (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!(err instanceof HttpError && err.status === 409)) console.error(`Review ${job.id} failed: ${message}`);
+      await pool.query(`UPDATE reviews SET status = 'failed', error = $2 WHERE id = $1`, [job.id, message]);
+    });
+  return { job, done };
+}
