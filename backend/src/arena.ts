@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { askJson, guarded, isRunning, localModels } from './ai.js';
+import { askJson, guarded, isLocalModel, isRunning, localModels } from './ai.js';
 import { config } from './config.js';
 import { getMarketContext } from './context.js';
 import { pool } from './db.js';
@@ -499,6 +499,25 @@ export function runAgent(id: number, shared?: Universe) {
         ),
         tradesThisWeek(agent.id),
       ]);
+      // Local models on a 6 GB GPU choke on the full package: give them the essentials, rounded and trimmed.
+      const local = isLocalModel(model);
+      const held = new Set(pf.positions.map((p) => p.secid));
+      const instruments = local
+        ? universe.instruments
+            .filter((i, idx) => idx < 30 || held.has(i.secid))
+            .map((i) => ({
+              secid: i.secid,
+              sector: i.sector,
+              price: i.price,
+              quantScore: i.quantScore,
+              rsi14: i.tech.rsi14,
+              change1mPct: i.tech.change1mPct,
+              change3mPct: i.ratios.change3mPct,
+              aboveSma200: i.tech.aboveSma200,
+              pe: i.ratios.pe,
+              dividendYieldPct: i.ratios.dividendYieldPct,
+            }))
+        : universe.instruments;
       const user = JSON.stringify({
         today: universe.date,
         account: {
@@ -519,14 +538,15 @@ export function runAgent(id: number, shared?: Universe) {
         pastRuns: past.rows.map((r) => ({
           date: r.started_at.toISOString().slice(0, 10),
           marketView: r.market_view,
-          reasoning: r.reasoning?.slice(0, 600),
+          reasoning: r.reasoning?.slice(0, local ? 300 : 600),
           trades: r.executed.filter((e) => e.status === 'filled').map((e) => `${e.direction} ${e.secid} ${Math.round(e.amountRub)} ₽`),
         })),
         marketContext: universe.market,
-        marketNews: universe.news,
-        companyEvents: universe.events,
-        instruments: universe.instruments,
+        marketNews: local ? universe.news.slice(0, 8) : universe.news,
+        companyEvents: local ? universe.events.slice(0, 6) : universe.events,
+        instruments,
       });
+      if (local) console.log(`Arena: ${agent.name} → ${model}, prompt ${Math.round(user.length / 1024)} KB`);
       const decision = await askJson(systemPrompt(agent), user, decisionSchema, model);
       const executed = await applyRisk(agent, runId, universe, decision.orders);
       await pool.query(

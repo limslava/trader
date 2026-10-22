@@ -167,20 +167,23 @@ async function chat(messages: { role: string; content: string }[], model = confi
  * and a context window large enough for the Arena data package. A 12–14B model on a laptop needs minutes.
  */
 async function chatOllama(messages: { role: string; content: string }[], model: string): Promise<string> {
-  // Ollama refuses connections for a while when it is loading a large model or restarting: wait and retry.
+  // Ollama refuses connections while loading a large model or restarting: wait and retry. A timeout is not
+  // retried — on a small GPU a 14B model can take 20 minutes, and a second attempt would only take longer.
   let lastErr: unknown;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    if (attempt) await new Promise((r) => setTimeout(r, 30_000 * attempt));
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 45_000 * attempt));
     try {
       return await chatOllamaOnce(messages, model);
     } catch (err) {
       lastErr = err;
-      if (!(err instanceof HttpError && err.status === 503)) throw err;
-      console.warn(`Ollama unavailable (attempt ${attempt + 1}/4): ${err.message}`);
+      if (!(err instanceof HttpError && err.status === 503) || /таймаут/.test(err.message)) throw err;
+      console.warn(`Ollama unavailable (attempt ${attempt + 1}/3): ${err.message}`);
     }
   }
   throw lastErr;
 }
+
+const LOCAL_TIMEOUT_MS = 25 * 60_000;
 
 async function chatOllamaOnce(messages: { role: string; content: string }[], model: string): Promise<string> {
   const res = await fetch(`${config.OLLAMA_URL.replace(/\/$/, '')}/api/chat`, {
@@ -192,11 +195,14 @@ async function chatOllamaOnce(messages: { role: string; content: string }[], mod
       stream: false,
       format: 'json',
       think: false,
-      options: { temperature: 0.2, num_ctx: 32768, num_predict: 4000 },
+      options: { temperature: 0.2, num_ctx: 16384, num_predict: 3000 },
     }),
-    signal: AbortSignal.timeout(15 * 60_000),
+    signal: AbortSignal.timeout(LOCAL_TIMEOUT_MS),
   }).catch((err) => {
-    throw new HttpError(503, `Ollama недоступна (${config.OLLAMA_URL}): ${err instanceof Error ? err.message : String(err)}`);
+    const cause = err instanceof Error && 'cause' in err && err.cause instanceof Error ? err.cause : err;
+    const timedOut = err instanceof Error && (err.name === 'TimeoutError' || (cause instanceof Error && cause.name === 'TimeoutError'));
+    if (timedOut) throw new HttpError(503, `Ollama: таймаут ${LOCAL_TIMEOUT_MS / 60_000} мин — модель ${model} слишком медленная для этого пакета данных`);
+    throw new HttpError(503, `Ollama недоступна (${config.OLLAMA_URL}): ${cause instanceof Error ? cause.message : String(err)}`);
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
